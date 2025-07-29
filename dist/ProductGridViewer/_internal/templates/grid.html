@@ -1,0 +1,283 @@
+<!-- templates/grid.html -->
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Product Grid Viewer</title>
+    <link rel="stylesheet"
+          href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=League+Spartan:wght@400;700&display=swap"
+          rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
+    <link rel="stylesheet"
+          href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" />
+</head>
+<body>
+    <div class="page-header">
+        <img src="{{ url_for('static', filename='images/Vista Grande.png') }}"
+             alt="Vista Grande Logo" class="logo">
+        <div class="title-text">
+            <h1><span>Interactive</span><br><span>Product Grid</span></h1>
+        </div>
+    </div>
+
+    <div class="main-container">
+        {% if products %}
+
+        <!-- FILTER BAR -->
+        <div class="controls" id="filter-bar">
+            <strong>Filter By...</strong>
+            {% for attr in attributes %}
+            {% set safe_attr = attr
+                | replace(' ', '_') | replace('/', '_')
+                | replace('(', '')| replace(')', '')
+                | replace('+', 'plus')| replace(':', '') %}
+            <label>
+                {{ attr.replace('ATT ', '') }}
+                <select id="filter-{{ safe_attr }}" class="select2-filter" multiple="multiple">
+                    <option value="All" selected>All</option>
+                    {% for val in filter_options[attr] %}
+                        <option value="{{ val }}">{{ val }}</option>
+                    {% endfor %}
+                </select>
+            </label>
+            {% endfor %}
+            <label>
+                Retail Distribution:
+                <select id="filter-retail" class="select2-filter" multiple="multiple">
+                    <option value="All" selected>All</option>
+                    {% for dist in distributions %}
+                    {% set safe_dist = dist
+                        | replace(' ', '_') | replace('/', '_')
+                        | replace('(', '')| replace(')', '')
+                        | replace('+', 'plus')| replace(':', '') %}
+                    <option value="{{ safe_dist }}">{{ dist.replace('DIST ', '') }}</option>
+                    {% endfor %}
+                </select>
+            </label>
+        </div>
+
+        <!-- VIEW BAR -->
+        <div class="controls" id="view-bar">
+            <strong>View By…</strong>
+            {% for attr in attributes %}
+            {% set key = attr
+                | replace(' ', '_') | replace('/', '_')
+                | replace('(', '')| replace(')', '')
+                | replace('+', 'plus')| replace(':', '') %}
+            <div class="view-toggle">
+                <span>{{ attr.replace('ATT ', '') }}</span>
+                <input type="checkbox" class="toggle-attr" data-attr="{{ key }}" checked>
+                <button type="button" class="sort-btn" data-attr="{{ key }}" data-dir="asc">
+                  &#9650;
+                </button>
+                <button type="button" class="sort-btn" data-attr="{{ key }}" data-dir="desc">
+                  &#9660;
+                </button>
+            </div>
+            {% endfor %}
+
+            <!-- always‐on: Description & Price -->
+            <div class="view-toggle">
+                <span>Description</span>
+                <button type="button" class="sort-btn" data-attr="description" data-dir="asc">
+                  &#9650;
+                </button>
+                <button type="button" class="sort-btn" data-attr="description" data-dir="desc">
+                  &#9660;
+                </button>
+            </div>
+            <div class="view-toggle">
+                <span>Price</span>
+                <button type="button" class="sort-btn" data-attr="price" data-dir="asc">
+                  &#9650;
+                </button>
+                <button type="button" class="sort-btn" data-attr="price" data-dir="desc">
+                  &#9660;
+                </button>
+            </div>
+
+            <div class="select-all-buttons">
+                <button type="button" id="selectAllView">Select All</button>
+                <button type="button" id="deselectAllView">Deselect All</button>
+            </div>
+        </div>
+
+        <!-- FILE UPLOAD / REPLACE -->
+        <div class="controls">
+            <div class="file-upload-container">
+                <span class="icon"><i class="fa fa-file-excel-o"></i></span>
+                <span class="file-name-display">
+                  <strong>Current Grid:</strong>
+                  <span id="current-filename">{{ uploaded_filename or 'ProductGrid2025.xlsx' }}</span>
+                </span>
+                <button type="button" class="replace-button" id="replace-file-button">
+                  Replace
+                </button>
+                <form id="file-upload-form" method="post"
+                      enctype="multipart/form-data" action="/">
+                    <input type="file" id="file-upload-input" name="excel_file"
+                           accept=".xlsx, .xls">
+                </form>
+            </div>
+            <!-- ACTION BUTTONS -->
+            <div class="controls action-buttons">
+                <button class="custom-btn btn-style500" id="applyChangesBtn">Apply Changes</button>
+                <button class="custom-btn btn-style702" id="downloadCurrentFileBtn">Download Current File</button>
+            </div>
+        </div>
+
+
+        <!-- PAGE VIEW -->
+        <div class="controls view-toggle-buttons">
+            <button id="gridViewBtn">Grid View</button>
+            <button id="summaryViewBtn">Summary View</button>
+          </div>
+
+        <!-- PRODUCT GRID -->
+        <div class="product-grid" id="product-grid">
+            {% for product in products %}
+            <div class="product"
+                 data-product-index="{{ product.original_index }}"
+                 data-product-id="{{ loop.index0 }}"
+                 {% for attr in attributes %}
+                   {% set safe_attr = attr
+                       | replace(' ', '_') | replace('/', '_')
+                       | replace('(', '')| replace(')', '')
+                       | replace('+', 'plus')| replace(':', '') %}
+                   data-{{ safe_attr }}="{{ product.attributes[attr] }}"
+                 {% endfor %}
+                 {% for dist in distributions %}
+                   {% set safe_dist = dist
+                       | replace(' ', '_') | replace('/', '_')
+                       | replace('(', '')| replace(')', '')
+                       | replace('+', 'plus')| replace(':', '') %}
+                   data-{{ safe_dist }}="{{ product.distribution[dist] }}"
+                 {% endfor %}>
+
+                <img 
+                 src="{{ url_for('user_images', filename=product.image_filename) }}" 
+                 alt="Product Image" 
+                >
+
+                <div class="product-text">
+                    <span class="grid-desc">{{ product.description }}</span>
+                    {% if product.price %}
+                    <span class="grid-price">${{ product.price }}</span>
+                    {% endif %}
+                </div>
+                      
+                {% for attr in attributes %}
+                {% set safe_attr = attr
+                    | replace(' ', '_') | replace('/', '_')
+                    | replace('(', '')| replace(')', '')
+                    | replace('+', 'plus')| replace(':', '') %}
+                <div class="attr-field attr-{{ safe_attr }}"
+                     data-original-value="{{ product.original_attributes[attr] }}">
+                  <small>
+                    <strong>{{ attr.replace('ATT ', '') }}:</strong>
+                    <span class="attribute-value
+                                 {{ 'changed-attribute'
+                                    if product.attributes[attr]
+                                       != product.original_attributes[attr] else '' }}"
+                          data-attr-name="{{ attr }}"
+                          data-current-value="{{ product.attributes[attr] }}">
+                      {{ product.attributes[attr] }}
+                    </span>
+                  </small>
+                </div>
+                {% endfor %}
+            </div>
+            {% endfor %}
+        </div>
+
+        <!-- DETAIL MODAL -->
+        <div id="productModal" class="modal">
+            <div class="modal-content">
+                <span class="close-button">&times;</span>
+                <div class="modal-body">
+                    <img id="modalImage" src="" alt="Product Image">
+                    <!-- existing editable-description & editable-price rows here -->
+                        <p><strong>Description:</strong>
+                        <span id="modalDescription"></span>
+                        </p>
+                        <p><strong>Price: $</strong>
+                        <span id="modalPrice"></span>
+                        </p>
+                    <div id="modalAttributes"></div>
+                    <button id="saveModalChanges" class="modal-save-btn">
+                      Save Changes
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        {% else %}
+        <!-- INITIAL UPLOAD SCREEN -->
+        <div class="upload-screen">
+            <form id="file-upload-form" method="post"
+                  enctype="multipart/form-data" action="/" class="upload-form">
+                <div class="upload-dropzone">
+                    <i class="fa fa-cloud-upload fa-3x"></i>
+                    <p>
+                      Drag & drop your <strong>Product Attribute Grid</strong> here,
+                      or click to select a file
+                    </p>
+                    <input type="file" id="file-upload-input" name="excel_file"
+                           accept=".xlsx, .xls">
+                    <div class="folder-select">
+                            <label for="image-folder-input"><strong>Select Images Folder:</strong></label><br>
+                            <input
+                              type="file"
+                              id="image-folder-input"
+                              name="image_files"
+                              webkitdirectory
+                              directory
+                              multiple
+                            >
+                            <small>(choose the directory containing all your product images)</small>
+                          </div>
+                    
+                    <button type="submit" class="upload-submit-btn">
+                      Upload Files
+                    </button>
+                </div>
+
+            </form>
+            <div class="upload-instructions">
+                <p><strong>Ensure that the product grid is in the following format:</strong></p>
+                <ul>
+                    <li>Product ID is the first column</li>
+                    <li>Description is the second column</li>
+                    <li>Attribute columns start with "ATT" (e.g. ATT Brand)</li>
+                    <li>Distribution columns start with "DIST" and use "X" for availability</li>
+                    <li>Price column header contains "price" and is last</li>
+                </ul>
+            </div>
+            <div class="upload-example">
+                <p><strong>Example Spreadsheet:</strong></p>
+                <img src="{{ url_for('static',
+                           filename='images/exampleImage.png') }}"
+                     alt="Example template" class="example-image">
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script
+      src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js">
+    </script>
+    <script>
+        window.PRODUCTS_DATA = JSON.parse('{{ products | tojson | safe }}');
+        window.ALL_ATTRIBUTE_NAMES = JSON.parse('{{ attributes | tojson | safe }}');
+        window.ALL_FILTER_OPTIONS  = JSON.parse('{{ filter_options | tojson | safe }}');
+    </script>
+    <script src="{{ url_for('static', filename='js/main.js') }}" defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels"></script>
+    
+    <script>
+        window.ALL_DISTRIBUTIONS = JSON.parse('{{ distributions | tojson | safe }}');
+    </script>
+</body>
+</html>

@@ -3,17 +3,17 @@
 <plist version="1.0">
 <dict>
 	<key>CFBundleDisplayName</key>
-	<string>ProductGridViewer</string>
+	<string>ProductGridViewer.app</string>
 	<key>CFBundleExecutable</key>
-	<string>ProductGridViewer</string>
+	<string>ProductGridViewer.app</string>
 	<key>CFBundleIconFile</key>
 	<string>icon-windowed.icns</string>
 	<key>CFBundleIdentifier</key>
-	<string>ProductGridViewer</string>
+	<string>ProductGridViewer.app</string>
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>ProductGridViewer</string>
+	<string>ProductGridViewer.app</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>

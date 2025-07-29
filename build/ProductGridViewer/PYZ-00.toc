@@ -1,6 +1,310 @@
 ('/Users/kristinawong/Desktop/Work/Product '
  'Viewer/build/ProductGridViewer/PYZ-00.pyz',
- [('__future__',
+ [('PIL',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/PIL/__init__.py',
+   'PYMODULE'),
+  ('PIL.AvifImagePlugin',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/PIL/AvifImagePlugin.py',
+   'PYMODULE'),
+  ('PIL.BlpImagePlugin',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/PIL/BlpImagePlugin.py',
+   'PYMODULE'),
+  ('PIL.BmpImagePlugin',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/PIL/BmpImagePlugin.py',
+   'PYMODULE'),
+  ('PIL.BufrStubImagePlugin',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/PIL/BufrStubImagePlugin.py',
+   'PYMODULE'),
+  ('PIL.CurImagePlugin',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/PIL/CurImagePlugin.py',
+   'PYMODULE'),
+  ('PIL.DcxImagePlugin',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/PIL/DcxImagePlugin.py',
+   'PYMODULE'),
+  ('PIL.DdsImagePlugin',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/PIL/DdsImagePlugin.py',
+   'PYMODULE'),
+  ('PIL.EpsImagePlugin',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/PIL/EpsImagePlugin.py',
+   'PYMODULE'),
+  ('PIL.ExifTags',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/PIL/ExifTags.py',
+   'PYMODULE'),
+  ('PIL.FitsImagePlugin',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/PIL/FitsImagePlugin.py',
+   'PYMODULE'),
+  ('PIL.FliImagePlugin',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/PIL/FliImagePlugin.py',
+   'PYMODULE'),
+  ('PIL.FpxImagePlugin',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/PIL/FpxImagePlugin.py',
+   'PYMODULE'),
+  ('PIL.FtexImagePlugin',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/PIL/FtexImagePlugin.py',
+   'PYMODULE'),
+  ('PIL.GbrImagePlugin',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/PIL/GbrImagePlugin.py',
+   'PYMODULE'),
+  ('PIL.GifImagePlugin',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/PIL/GifImagePlugin.py',
+   'PYMODULE'),
+  ('PIL.GimpGradientFile',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/PIL/GimpGradientFile.py',
+   'PYMODULE'),
+  ('PIL.GimpPaletteFile',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/PIL/GimpPaletteFile.py',
+   'PYMODULE'),
+  ('PIL.GribStubImagePlugin',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/PIL/GribStubImagePlugin.py',
+   'PYMODULE'),
+  ('PIL.Hdf5StubImagePlugin',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/PIL/Hdf5StubImagePlugin.py',
+   'PYMODULE'),
+  ('PIL.IcnsImagePlugin',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/PIL/IcnsImagePlugin.py',
+   'PYMODULE'),
+  ('PIL.IcoImagePlugin',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/PIL/IcoImagePlugin.py',
+   'PYMODULE'),
+  ('PIL.ImImagePlugin',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/PIL/ImImagePlugin.py',
+   'PYMODULE'),
+  ('PIL.Image',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/PIL/Image.py',
+   'PYMODULE'),
+  ('PIL.ImageChops',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/PIL/ImageChops.py',
+   'PYMODULE'),
+  ('PIL.ImageCms',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/PIL/ImageCms.py',
+   'PYMODULE'),
+  ('PIL.ImageColor',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/PIL/ImageColor.py',
+   'PYMODULE'),
+  ('PIL.ImageFile',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/PIL/ImageFile.py',
+   'PYMODULE'),
+  ('PIL.ImageFilter',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/PIL/ImageFilter.py',
+   'PYMODULE'),
+  ('PIL.ImageMath',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/PIL/ImageMath.py',
+   'PYMODULE'),
+  ('PIL.ImageMode',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/PIL/ImageMode.py',
+   'PYMODULE'),
+  ('PIL.ImageOps',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/PIL/ImageOps.py',
+   'PYMODULE'),
+  ('PIL.ImagePalette',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/PIL/ImagePalette.py',
+   'PYMODULE'),
+  ('PIL.ImageQt',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/PIL/ImageQt.py',
+   'PYMODULE'),
+  ('PIL.ImageSequence',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/PIL/ImageSequence.py',
+   'PYMODULE'),
+  ('PIL.ImageShow',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/PIL/ImageShow.py',
+   'PYMODULE'),
+  ('PIL.ImageTk',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/PIL/ImageTk.py',
+   'PYMODULE'),
+  ('PIL.ImageWin',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/PIL/ImageWin.py',
+   'PYMODULE'),
+  ('PIL.ImtImagePlugin',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/PIL/ImtImagePlugin.py',
+   'PYMODULE'),
+  ('PIL.IptcImagePlugin',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/PIL/IptcImagePlugin.py',
+   'PYMODULE'),
+  ('PIL.Jpeg2KImagePlugin',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/PIL/Jpeg2KImagePlugin.py',
+   'PYMODULE'),
+  ('PIL.JpegImagePlugin',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/PIL/JpegImagePlugin.py',
+   'PYMODULE'),
+  ('PIL.JpegPresets',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/PIL/JpegPresets.py',
+   'PYMODULE'),
+  ('PIL.McIdasImagePlugin',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/PIL/McIdasImagePlugin.py',
+   'PYMODULE'),
+  ('PIL.MicImagePlugin',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/PIL/MicImagePlugin.py',
+   'PYMODULE'),
+  ('PIL.MpegImagePlugin',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/PIL/MpegImagePlugin.py',
+   'PYMODULE'),
+  ('PIL.MpoImagePlugin',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/PIL/MpoImagePlugin.py',
+   'PYMODULE'),
+  ('PIL.MspImagePlugin',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/PIL/MspImagePlugin.py',
+   'PYMODULE'),
+  ('PIL.PaletteFile',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/PIL/PaletteFile.py',
+   'PYMODULE'),
+  ('PIL.PalmImagePlugin',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/PIL/PalmImagePlugin.py',
+   'PYMODULE'),
+  ('PIL.PcdImagePlugin',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/PIL/PcdImagePlugin.py',
+   'PYMODULE'),
+  ('PIL.PcxImagePlugin',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/PIL/PcxImagePlugin.py',
+   'PYMODULE'),
+  ('PIL.PdfImagePlugin',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/PIL/PdfImagePlugin.py',
+   'PYMODULE'),
+  ('PIL.PdfParser',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/PIL/PdfParser.py',
+   'PYMODULE'),
+  ('PIL.PixarImagePlugin',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/PIL/PixarImagePlugin.py',
+   'PYMODULE'),
+  ('PIL.PngImagePlugin',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/PIL/PngImagePlugin.py',
+   'PYMODULE'),
+  ('PIL.PpmImagePlugin',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/PIL/PpmImagePlugin.py',
+   'PYMODULE'),
+  ('PIL.PsdImagePlugin',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/PIL/PsdImagePlugin.py',
+   'PYMODULE'),
+  ('PIL.QoiImagePlugin',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/PIL/QoiImagePlugin.py',
+   'PYMODULE'),
+  ('PIL.SgiImagePlugin',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/PIL/SgiImagePlugin.py',
+   'PYMODULE'),
+  ('PIL.SpiderImagePlugin',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/PIL/SpiderImagePlugin.py',
+   'PYMODULE'),
+  ('PIL.SunImagePlugin',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/PIL/SunImagePlugin.py',
+   'PYMODULE'),
+  ('PIL.TgaImagePlugin',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/PIL/TgaImagePlugin.py',
+   'PYMODULE'),
+  ('PIL.TiffImagePlugin',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/PIL/TiffImagePlugin.py',
+   'PYMODULE'),
+  ('PIL.TiffTags',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/PIL/TiffTags.py',
+   'PYMODULE'),
+  ('PIL.WebPImagePlugin',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/PIL/WebPImagePlugin.py',
+   'PYMODULE'),
+  ('PIL.WmfImagePlugin',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/PIL/WmfImagePlugin.py',
+   'PYMODULE'),
+  ('PIL.XVThumbImagePlugin',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/PIL/XVThumbImagePlugin.py',
+   'PYMODULE'),
+  ('PIL.XbmImagePlugin',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/PIL/XbmImagePlugin.py',
+   'PYMODULE'),
+  ('PIL.XpmImagePlugin',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/PIL/XpmImagePlugin.py',
+   'PYMODULE'),
+  ('PIL._binary',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/PIL/_binary.py',
+   'PYMODULE'),
+  ('PIL._deprecate',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/PIL/_deprecate.py',
+   'PYMODULE'),
+  ('PIL._typing',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/PIL/_typing.py',
+   'PYMODULE'),
+  ('PIL._util',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/PIL/_util.py',
+   'PYMODULE'),
+  ('PIL._version',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/PIL/_version.py',
+   'PYMODULE'),
+  ('PIL.features',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/PIL/features.py',
+   'PYMODULE'),
+  ('__future__',
    '/opt/homebrew/Cellar/python@3.13/3.13.5/Frameworks/Python.framework/Versions/3.13/lib/python3.13/__future__.py',
    'PYMODULE'),
   ('_aix_support',
@@ -258,6 +562,46 @@
   ('calendar',
    '/opt/homebrew/Cellar/python@3.13/3.13.5/Frameworks/Python.framework/Versions/3.13/lib/python3.13/calendar.py',
    'PYMODULE'),
+  ('certifi',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/certifi/__init__.py',
+   'PYMODULE'),
+  ('certifi.core',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/certifi/core.py',
+   'PYMODULE'),
+  ('charset_normalizer',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/charset_normalizer/__init__.py',
+   'PYMODULE'),
+  ('charset_normalizer.api',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/charset_normalizer/api.py',
+   'PYMODULE'),
+  ('charset_normalizer.cd',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/charset_normalizer/cd.py',
+   'PYMODULE'),
+  ('charset_normalizer.constant',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/charset_normalizer/constant.py',
+   'PYMODULE'),
+  ('charset_normalizer.legacy',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/charset_normalizer/legacy.py',
+   'PYMODULE'),
+  ('charset_normalizer.models',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/charset_normalizer/models.py',
+   'PYMODULE'),
+  ('charset_normalizer.utils',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/charset_normalizer/utils.py',
+   'PYMODULE'),
+  ('charset_normalizer.version',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/charset_normalizer/version.py',
+   'PYMODULE'),
   ('click',
    '/Users/kristinawong/Desktop/Work/Product '
    'Viewer/.venv/lib/python3.13/site-packages/click/__init__.py',
@@ -330,6 +674,9 @@
    'PYMODULE'),
   ('codeop',
    '/opt/homebrew/Cellar/python@3.13/3.13.5/Frameworks/Python.framework/Versions/3.13/lib/python3.13/codeop.py',
+   'PYMODULE'),
+  ('colorsys',
+   '/opt/homebrew/Cellar/python@3.13/3.13.5/Frameworks/Python.framework/Versions/3.13/lib/python3.13/colorsys.py',
    'PYMODULE'),
   ('concurrent',
    '/opt/homebrew/Cellar/python@3.13/3.13.5/Frameworks/Python.framework/Versions/3.13/lib/python3.13/concurrent/__init__.py',
@@ -681,8 +1028,35 @@
   ('http.cookiejar',
    '/opt/homebrew/Cellar/python@3.13/3.13.5/Frameworks/Python.framework/Versions/3.13/lib/python3.13/http/cookiejar.py',
    'PYMODULE'),
+  ('http.cookies',
+   '/opt/homebrew/Cellar/python@3.13/3.13.5/Frameworks/Python.framework/Versions/3.13/lib/python3.13/http/cookies.py',
+   'PYMODULE'),
   ('http.server',
    '/opt/homebrew/Cellar/python@3.13/3.13.5/Frameworks/Python.framework/Versions/3.13/lib/python3.13/http/server.py',
+   'PYMODULE'),
+  ('idna',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/idna/__init__.py',
+   'PYMODULE'),
+  ('idna.core',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/idna/core.py',
+   'PYMODULE'),
+  ('idna.idnadata',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/idna/idnadata.py',
+   'PYMODULE'),
+  ('idna.intranges',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/idna/intranges.py',
+   'PYMODULE'),
+  ('idna.package_data',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/idna/package_data.py',
+   'PYMODULE'),
+  ('idna.uts46data',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/idna/uts46data.py',
    'PYMODULE'),
   ('importlib',
    '/opt/homebrew/Cellar/python@3.13/3.13.5/Frameworks/Python.framework/Versions/3.13/lib/python3.13/importlib/__init__.py',
@@ -3484,6 +3858,146 @@
   ('py_compile',
    '/opt/homebrew/Cellar/python@3.13/3.13.5/Frameworks/Python.framework/Versions/3.13/lib/python3.13/py_compile.py',
    'PYMODULE'),
+  ('pyarrow',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/pyarrow/__init__.py',
+   'PYMODULE'),
+  ('pyarrow._compute_docstrings',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/pyarrow/_compute_docstrings.py',
+   'PYMODULE'),
+  ('pyarrow._generated_version',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/pyarrow/_generated_version.py',
+   'PYMODULE'),
+  ('pyarrow.acero',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/pyarrow/acero.py',
+   'PYMODULE'),
+  ('pyarrow.benchmark',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/pyarrow/benchmark.py',
+   'PYMODULE'),
+  ('pyarrow.cffi',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/pyarrow/cffi.py',
+   'PYMODULE'),
+  ('pyarrow.compute',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/pyarrow/compute.py',
+   'PYMODULE'),
+  ('pyarrow.conftest',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/pyarrow/conftest.py',
+   'PYMODULE'),
+  ('pyarrow.csv',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/pyarrow/csv.py',
+   'PYMODULE'),
+  ('pyarrow.cuda',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/pyarrow/cuda.py',
+   'PYMODULE'),
+  ('pyarrow.dataset',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/pyarrow/dataset.py',
+   'PYMODULE'),
+  ('pyarrow.feather',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/pyarrow/feather.py',
+   'PYMODULE'),
+  ('pyarrow.flight',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/pyarrow/flight.py',
+   'PYMODULE'),
+  ('pyarrow.fs',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/pyarrow/fs.py',
+   'PYMODULE'),
+  ('pyarrow.interchange',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/pyarrow/interchange/__init__.py',
+   'PYMODULE'),
+  ('pyarrow.interchange.buffer',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/pyarrow/interchange/buffer.py',
+   'PYMODULE'),
+  ('pyarrow.interchange.column',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/pyarrow/interchange/column.py',
+   'PYMODULE'),
+  ('pyarrow.interchange.dataframe',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/pyarrow/interchange/dataframe.py',
+   'PYMODULE'),
+  ('pyarrow.interchange.from_dataframe',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/pyarrow/interchange/from_dataframe.py',
+   'PYMODULE'),
+  ('pyarrow.ipc',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/pyarrow/ipc.py',
+   'PYMODULE'),
+  ('pyarrow.json',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/pyarrow/json.py',
+   'PYMODULE'),
+  ('pyarrow.jvm',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/pyarrow/jvm.py',
+   'PYMODULE'),
+  ('pyarrow.orc',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/pyarrow/orc.py',
+   'PYMODULE'),
+  ('pyarrow.pandas_compat',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/pyarrow/pandas_compat.py',
+   'PYMODULE'),
+  ('pyarrow.parquet',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/pyarrow/parquet/__init__.py',
+   'PYMODULE'),
+  ('pyarrow.parquet.core',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/pyarrow/parquet/core.py',
+   'PYMODULE'),
+  ('pyarrow.parquet.encryption',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/pyarrow/parquet/encryption.py',
+   'PYMODULE'),
+  ('pyarrow.substrait',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/pyarrow/substrait.py',
+   'PYMODULE'),
+  ('pyarrow.tests',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/pyarrow/tests/__init__.py',
+   'PYMODULE'),
+  ('pyarrow.tests.util',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/pyarrow/tests/util.py',
+   'PYMODULE'),
+  ('pyarrow.types',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/pyarrow/types.py',
+   'PYMODULE'),
+  ('pyarrow.util',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/pyarrow/util.py',
+   'PYMODULE'),
+  ('pyarrow.vendored',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/pyarrow/vendored/__init__.py',
+   'PYMODULE'),
+  ('pyarrow.vendored.docscrape',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/pyarrow/vendored/docscrape.py',
+   'PYMODULE'),
+  ('pyarrow.vendored.version',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/pyarrow/vendored/version.py',
+   'PYMODULE'),
   ('pydoc',
    '/opt/homebrew/Cellar/python@3.13/3.13.5/Frameworks/Python.framework/Versions/3.13/lib/python3.13/pydoc.py',
    'PYMODULE'),
@@ -3521,6 +4035,74 @@
    'PYMODULE'),
   ('random',
    '/opt/homebrew/Cellar/python@3.13/3.13.5/Frameworks/Python.framework/Versions/3.13/lib/python3.13/random.py',
+   'PYMODULE'),
+  ('requests',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/requests/__init__.py',
+   'PYMODULE'),
+  ('requests.__version__',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/requests/__version__.py',
+   'PYMODULE'),
+  ('requests._internal_utils',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/requests/_internal_utils.py',
+   'PYMODULE'),
+  ('requests.adapters',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/requests/adapters.py',
+   'PYMODULE'),
+  ('requests.api',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/requests/api.py',
+   'PYMODULE'),
+  ('requests.auth',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/requests/auth.py',
+   'PYMODULE'),
+  ('requests.certs',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/requests/certs.py',
+   'PYMODULE'),
+  ('requests.compat',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/requests/compat.py',
+   'PYMODULE'),
+  ('requests.cookies',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/requests/cookies.py',
+   'PYMODULE'),
+  ('requests.exceptions',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/requests/exceptions.py',
+   'PYMODULE'),
+  ('requests.hooks',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/requests/hooks.py',
+   'PYMODULE'),
+  ('requests.models',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/requests/models.py',
+   'PYMODULE'),
+  ('requests.packages',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/requests/packages.py',
+   'PYMODULE'),
+  ('requests.sessions',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/requests/sessions.py',
+   'PYMODULE'),
+  ('requests.status_codes',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/requests/status_codes.py',
+   'PYMODULE'),
+  ('requests.structures',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/requests/structures.py',
+   'PYMODULE'),
+  ('requests.utils',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/requests/utils.py',
    'PYMODULE'),
   ('rlcompleter',
    '/opt/homebrew/Cellar/python@3.13/3.13.5/Frameworks/Python.framework/Versions/3.13/lib/python3.13/rlcompleter.py',
@@ -3874,10 +4456,6 @@
    '/Users/kristinawong/Desktop/Work/Product '
    'Viewer/.venv/lib/python3.13/site-packages/setuptools/_vendor/tomli/_types.py',
    'PYMODULE'),
-  ('setuptools._vendor.typing_extensions',
-   '/Users/kristinawong/Desktop/Work/Product '
-   'Viewer/.venv/lib/python3.13/site-packages/setuptools/_vendor/typing_extensions.py',
-   'PYMODULE'),
   ('setuptools._vendor.zipp',
    '/Users/kristinawong/Desktop/Work/Product '
    'Viewer/.venv/lib/python3.13/site-packages/setuptools/_vendor/zipp/__init__.py',
@@ -4144,6 +4722,10 @@
   ('typing',
    '/opt/homebrew/Cellar/python@3.13/3.13.5/Frameworks/Python.framework/Versions/3.13/lib/python3.13/typing.py',
    'PYMODULE'),
+  ('typing_extensions',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/typing_extensions.py',
+   'PYMODULE'),
   ('unittest',
    '/opt/homebrew/Cellar/python@3.13/3.13.5/Frameworks/Python.framework/Versions/3.13/lib/python3.13/unittest/__init__.py',
    'PYMODULE'),
@@ -4194,6 +4776,150 @@
    'PYMODULE'),
   ('urllib.response',
    '/opt/homebrew/Cellar/python@3.13/3.13.5/Frameworks/Python.framework/Versions/3.13/lib/python3.13/urllib/response.py',
+   'PYMODULE'),
+  ('urllib3',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/urllib3/__init__.py',
+   'PYMODULE'),
+  ('urllib3._base_connection',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/urllib3/_base_connection.py',
+   'PYMODULE'),
+  ('urllib3._collections',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/urllib3/_collections.py',
+   'PYMODULE'),
+  ('urllib3._request_methods',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/urllib3/_request_methods.py',
+   'PYMODULE'),
+  ('urllib3._version',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/urllib3/_version.py',
+   'PYMODULE'),
+  ('urllib3.connection',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/urllib3/connection.py',
+   'PYMODULE'),
+  ('urllib3.connectionpool',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/urllib3/connectionpool.py',
+   'PYMODULE'),
+  ('urllib3.contrib',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/urllib3/contrib/__init__.py',
+   'PYMODULE'),
+  ('urllib3.contrib.emscripten',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/urllib3/contrib/emscripten/__init__.py',
+   'PYMODULE'),
+  ('urllib3.contrib.emscripten.connection',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/urllib3/contrib/emscripten/connection.py',
+   'PYMODULE'),
+  ('urllib3.contrib.emscripten.fetch',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/urllib3/contrib/emscripten/fetch.py',
+   'PYMODULE'),
+  ('urllib3.contrib.emscripten.request',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/urllib3/contrib/emscripten/request.py',
+   'PYMODULE'),
+  ('urllib3.contrib.emscripten.response',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/urllib3/contrib/emscripten/response.py',
+   'PYMODULE'),
+  ('urllib3.contrib.pyopenssl',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/urllib3/contrib/pyopenssl.py',
+   'PYMODULE'),
+  ('urllib3.contrib.socks',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/urllib3/contrib/socks.py',
+   'PYMODULE'),
+  ('urllib3.exceptions',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/urllib3/exceptions.py',
+   'PYMODULE'),
+  ('urllib3.fields',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/urllib3/fields.py',
+   'PYMODULE'),
+  ('urllib3.filepost',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/urllib3/filepost.py',
+   'PYMODULE'),
+  ('urllib3.http2',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/urllib3/http2/__init__.py',
+   'PYMODULE'),
+  ('urllib3.http2.connection',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/urllib3/http2/connection.py',
+   'PYMODULE'),
+  ('urllib3.http2.probe',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/urllib3/http2/probe.py',
+   'PYMODULE'),
+  ('urllib3.poolmanager',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/urllib3/poolmanager.py',
+   'PYMODULE'),
+  ('urllib3.response',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/urllib3/response.py',
+   'PYMODULE'),
+  ('urllib3.util',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/urllib3/util/__init__.py',
+   'PYMODULE'),
+  ('urllib3.util.connection',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/urllib3/util/connection.py',
+   'PYMODULE'),
+  ('urllib3.util.proxy',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/urllib3/util/proxy.py',
+   'PYMODULE'),
+  ('urllib3.util.request',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/urllib3/util/request.py',
+   'PYMODULE'),
+  ('urllib3.util.response',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/urllib3/util/response.py',
+   'PYMODULE'),
+  ('urllib3.util.retry',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/urllib3/util/retry.py',
+   'PYMODULE'),
+  ('urllib3.util.ssl_',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/urllib3/util/ssl_.py',
+   'PYMODULE'),
+  ('urllib3.util.ssl_match_hostname',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/urllib3/util/ssl_match_hostname.py',
+   'PYMODULE'),
+  ('urllib3.util.ssltransport',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/urllib3/util/ssltransport.py',
+   'PYMODULE'),
+  ('urllib3.util.timeout',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/urllib3/util/timeout.py',
+   'PYMODULE'),
+  ('urllib3.util.url',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/urllib3/util/url.py',
+   'PYMODULE'),
+  ('urllib3.util.util',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/urllib3/util/util.py',
+   'PYMODULE'),
+  ('urllib3.util.wait',
+   '/Users/kristinawong/Desktop/Work/Product '
+   'Viewer/.venv/lib/python3.13/site-packages/urllib3/util/wait.py',
    'PYMODULE'),
   ('uuid',
    '/opt/homebrew/Cellar/python@3.13/3.13.5/Frameworks/Python.framework/Versions/3.13/lib/python3.13/uuid.py',
