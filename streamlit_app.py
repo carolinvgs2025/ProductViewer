@@ -309,7 +309,7 @@ def clickable_card(product, project, visible_attributes, key):
     """
     
     # The component call returns the value set by JS (the index)
-    clicked_index = components.html(card_html, height=450, key=key)
+    clicked_index = components.html(card_html, height=480, key=key)
     return clicked_index
 
 
@@ -550,7 +550,7 @@ def show_grid_page():
     # Header with project info and navigation
     col1, col2 = st.columns([3, 1])
     with col1:
-        st.title(f"📊 {project['name']}")
+        st.title(f"� {project['name']}")
         if project['description']:
             st.write(project['description'])
     
@@ -692,7 +692,9 @@ def show_grid_page():
             cols = st.columns(cols_per_row)
             for j, product in enumerate(sorted_products[i:i+cols_per_row]):
                 with cols[j]:
-                    clicked_index = clickable_card(product, project, view_options['visible_attributes'], key=f"card_{product['original_index']}")
+                    # Using a more robust key for the component
+                    card_key = f"card_{project_id}_{product['original_index']}"
+                    clicked_index = clickable_card(product, project, view_options['visible_attributes'], key=card_key)
                     if clicked_index is not None:
                         # Find the product that was clicked
                         clicked_product = next((p for p in project['products_data'] if p['original_index'] == clicked_index), None)
