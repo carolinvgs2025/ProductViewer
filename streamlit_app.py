@@ -563,7 +563,7 @@ def show_grid_page():
         show_edit_modal(st.session_state.editing_product, project)
         return
     
-    # --- NEW: VIEW AND SORT CONTROL BAND ---
+    # --- VIEW AND SORT CONTROL BAND ---
     with st.container(border=True):
         # Initialize view options in session state if they don't exist for this project
         if f'view_options_{project_id}' not in st.session_state:
@@ -576,6 +576,12 @@ def show_grid_page():
         
         # Get all possible fields to show/sort by
         all_fields = ['Description', 'Price'] + project['attributes']
+        
+        # Function to format attribute names for display
+        def format_attribute_name(attr_name):
+            if isinstance(attr_name, str):
+                return attr_name.replace('ATT ', '')
+            return attr_name
 
         st.subheader("View & Sort Options")
         c1, c2 = st.columns(2)
@@ -586,18 +592,21 @@ def show_grid_page():
                 "Show/Hide Attributes on Cards:",
                 options=all_fields,
                 default=view_options['visible_attributes'],
-                key=f"visibility_multiselect_{project_id}"
+                key=f"visibility_multiselect_{project_id}",
+                format_func=format_attribute_name # Use the formatter here
             )
             view_options['visible_attributes'] = visible_attributes
 
         with c2:
             # --- Sorting Control ---
+            sort_options = ['product_id'] + all_fields
             sort_cols = st.columns([2, 1])
             selected_sort_by = sort_cols[0].selectbox(
                 "Sort Products By:",
-                options=['product_id'] + all_fields,
-                index=(['product_id'] + all_fields).index(view_options['sort_by']) if view_options['sort_by'] in (['product_id'] + all_fields) else 0,
-                key=f"sort_by_{project_id}"
+                options=sort_options,
+                index=sort_options.index(view_options['sort_by']) if view_options['sort_by'] in sort_options else 0,
+                key=f"sort_by_{project_id}",
+                format_func=format_attribute_name # Use the formatter here
             )
             view_options['sort_by'] = selected_sort_by
 
@@ -673,7 +682,7 @@ def show_grid_page():
         distribution_filters
     )
 
-    # --- NEW: Apply Sorting ---
+    # --- Apply Sorting ---
     sort_by = view_options['sort_by']
     is_ascending = view_options['sort_ascending']
 
