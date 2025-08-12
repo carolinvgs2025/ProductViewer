@@ -90,29 +90,8 @@ def get_filter_options(products, attributes):
     return {k: sorted(v) for k, v in opts.items()}
 
 def optimize_image_for_display(image_data):
-    """Optimize image for display"""
-    try:
-        img = Image.open(io.BytesIO(image_data))
-        if img.width > 3500:  # Higher threshold
-            ratio = 3500 / img.width
-            new_height = int(img.height * ratio)
-            img = img.resize((3500, new_height), Image.Resampling.LANCZOS)
-        
-        # Keep PNG format for better quality
-        if img.format == 'PNG' or img.mode == 'RGBA':
-            output = io.BytesIO()
-            img.save(output, format='PNG', optimize=True)
-            return output.getvalue()
-        
-        # Only convert to JPEG for non-PNG images
-        if img.mode in ('RGBA', 'LA', 'P'):
-            img = img.convert('RGB')
-        
-        output = io.BytesIO()
-        img.save(output, format='JPEG', quality=98, optimize=True)  # Higher quality
-        return output.getvalue()
-    except Exception:
-        return image_data
+    """Return original image with no processing for full quality"""
+    return image_data
 
 def find_image_for_product(product_id, uploaded_images):
     """Find matching image for a product ID"""
