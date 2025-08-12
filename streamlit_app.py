@@ -38,25 +38,6 @@ st.markdown(hide_streamlit_style, unsafe_allow_html=True)
 # Custom CSS
 st.markdown("""
 <style>
-        /* Remove container outlines and borders */
-    .element-container {
-        border: none !important;
-        outline: none !important;
-        background: transparent !important;
-    }
-    
-    /* Target specific containers that might be causing the rectangle */
-    div[data-testid="column"] > div {
-        border: none !important;
-        outline: none !important;
-        background: transparent !important;
-    }
-    
-    /* Remove any default container styling */
-    .stContainer {
-        border: none !important;
-        box-shadow: none !important;
-    }
     .main > div {
         padding-top: 2rem;
     }
@@ -341,22 +322,44 @@ def show_edit_modal(product, project):
     
     @st.dialog(f"Edit Product: {product['product_id']}")
     def edit_product_dialog():
-        col1, col2 = st.columns([1, 2])
+        # Make the modal wider by using custom CSS
+        st.markdown("""
+        <style>
+        div[data-testid="stDialog"] {
+            width: 80vw !important;
+            max-width: 1200px !important;
+        }
+        </style>
+        """, unsafe_allow_html=True)
+        
+        # Image at the top, larger
+        if product["image_data"]:
+            html = build_img_srcset(product["image_data"], css_width=400)  # Much larger image
+            st.markdown(f'<div style="text-align: center; margin-bottom: 20px;">{html}</div>', unsafe_allow_html=True)
+        else:
+            st.markdown('<div style="text-align: center; margin-bottom: 20px; padding: 50px; background: #f0f2f6; border-radius: 10px;">📷 No image</div>', unsafe_allow_html=True)
+        
+        # Description and Price in columns
+        col1, col2 = st.columns(2)
         
         with col1:
-            if product["image_data"]:
-                html = build_img_srcset(product["image_data"], css_width=MODAL_IMG_CSS_WIDTH)
-                st.markdown(html, unsafe_allow_html=True)
-            else:
-                st.write("📷 No image")
+            new_description = st.text_input("Description", value=product["description"])
         
         with col2:
-            new_description = st.text_input("Description", value=product["description"])
             new_price = st.text_input("Price", value=product["price"])
+        
+        # Attributes section
+        st.subheader("Attributes")
+        
+        # Display attributes in 2 columns for better use of space
+        attr_col1, attr_col2 = st.columns(2)
+        new_attributes = {}
+        
+        for i, attr in enumerate(project['attributes']):
+            # Alternate between columns
+            current_col = attr_col1 if i % 2 == 0 else attr_col2
             
-            st.subheader("Attributes")
-            new_attributes = {}
-            for attr in project['attributes']:
+            with current_col:
                 current_val = product["attributes"][attr]
                 options = project['filter_options'].get(attr, [current_val])
                 if current_val not in options:
@@ -371,40 +374,46 @@ def show_edit_modal(product, project):
                 )
                 
                 if selected_option == "[Custom Value]":
-                    new_attributes[attr] = st.text_input(f"Custom {clean_attr}", value=current_val, key=f"modal_custom_{attr}_{product['original_index']}")
+                    new_attributes[attr] = st.text_input(
+                        f"Custom {clean_attr}", 
+                        value=current_val, 
+                        key=f"modal_custom_{attr}_{product['original_index']}"
+                    )
                 else:
                     new_attributes[attr] = selected_option
-            
-            col_save, col_cancel = st.columns(2)
-            
-            with col_save:
-                if st.button("Save Changes", type="primary"):
-                    idx = product["original_index"]
-                    if idx not in project['pending_changes']:
-                        project['pending_changes'][idx] = {}
-                    
-                    if new_description != product["original_description"]:
-                        project['pending_changes'][idx]["description"] = new_description
-                        product["description"] = new_description
-                    
-                    if new_price != product["original_price"]:
-                        project['pending_changes'][idx]["price"] = new_price
-                        product["price"] = new_price
-                    
-                    for attr, new_val in new_attributes.items():
-                        if new_val != product["original_attributes"][attr]:
-                            project['pending_changes'][idx][attr] = new_val
-                            product["attributes"][attr] = new_val
-                    
-                    update_project_timestamp(project['id'])
-                    st.success("Changes saved!")
-                    del st.session_state.editing_product
-                    st.rerun()
-            
-            with col_cancel:
-                if st.button("Cancel"):
-                    del st.session_state.editing_product
-                    st.rerun()
+        
+        # Action buttons at the bottom, centered
+        st.markdown("---")
+        col_spacer1, col_save, col_cancel, col_spacer2 = st.columns([1, 1, 1, 1])
+        
+        with col_save:
+            if st.button("💾 Save Changes", type="primary", use_container_width=True):
+                idx = product["original_index"]
+                if idx not in project['pending_changes']:
+                    project['pending_changes'][idx] = {}
+                
+                if new_description != product["original_description"]:
+                    project['pending_changes'][idx]["description"] = new_description
+                    product["description"] = new_description
+                
+                if new_price != product["original_price"]:
+                    project['pending_changes'][idx]["price"] = new_price
+                    product["price"] = new_price
+                
+                for attr, new_val in new_attributes.items():
+                    if new_val != product["original_attributes"][attr]:
+                        project['pending_changes'][idx][attr] = new_val
+                        product["attributes"][attr] = new_val
+                
+                update_project_timestamp(project['id'])
+                st.success("✅ Changes saved!")
+                del st.session_state.editing_product
+                st.rerun()
+        
+        with col_cancel:
+            if st.button("❌ Cancel", use_container_width=True):
+                del st.session_state.editing_product
+                st.rerun()
     
     edit_product_dialog()
 
