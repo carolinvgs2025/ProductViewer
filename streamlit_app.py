@@ -54,8 +54,8 @@ st.markdown("""
         opacity: 0.9;
     }
     
-    /* Product card styling */
-    .product-card {
+    /* Product card styling - use Streamlit's container */
+    .stContainer > div {
         background: white;
         border-radius: 15px;
         padding: 1.5rem;
@@ -64,14 +64,14 @@ st.markdown("""
         border: 1px solid #e1e5e9;
         transition: all 0.3s ease;
         height: 100%;
-        display: flex;
-        flex-direction: column;
     }
     
-    .product-card:hover {
+    .stContainer > div:hover {
         transform: translateY(-5px);
         box-shadow: 0 8px 25px rgba(0,0,0,0.15);
     }
+    
+    /* Remove the old product-card class since we're not using it */
     
     .product-image {
         text-align: center;
@@ -79,10 +79,12 @@ st.markdown("""
         flex-shrink: 0;
     }
     
-    /* Remove box/container above images */
+    /* Clean up image display - remove all boxes */
     div[data-testid="stImage"] {
         margin: 0 !important;
         padding: 0 !important;
+        background: transparent !important;
+        border: none !important;
     }
     
     div[data-testid="stImage"] > div {
@@ -90,24 +92,23 @@ st.markdown("""
         padding: 0 !important;
         border: none !important;
         box-shadow: none !important;
-        background: none !important;
+        background: transparent !important;
+    }
+    
+    /* Target the actual image element */
+    div[data-testid="stImage"] img {
+        border-radius: 10px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        margin: 0 auto 15px auto;
+        display: block;
     }
     
     /* Remove any container styling around images */
     .element-container:has([data-testid="stImage"]) {
+        background: transparent !important;
+        border: none !important;
         margin: 0 !important;
         padding: 0 !important;
-        background: none !important;
-    }
-    
-    /* Clean up image display */
-    .product-card img {
-        display: block;
-        margin: 0 auto 10px auto;
-        border: none !important;
-        outline: none !important;
-        box-shadow: 0 2px 10px rgba(0,0,0,0.1) !important;
-        border-radius: 10px;
     }
     
     .product-title {
@@ -449,46 +450,43 @@ def sort_products(products, sort_field, sort_direction):
 
 def display_product_card(product, project, visibility_settings):
     """Display an enhanced product card"""
+    # Use Streamlit's native container and columns for proper structure
     with st.container():
-        st.markdown('<div class="product-card">', unsafe_allow_html=True)
-        
-        # Image section
-        if product["image_data"]:
-            st.image(product["image_data"], width=180, use_container_width=False)
-        else:
-            st.markdown('<div class="missing-image">📷 No Image Available</div>', unsafe_allow_html=True)
-        
-        # Description
-        if visibility_settings.get('description', True):
-            desc_class = "changed-attribute" if product["description"] != product["original_description"] else ""
-            st.markdown(f'<div class="product-title {desc_class}">{product["description"]}</div>', unsafe_allow_html=True)
-        
-        # Price
-        if product["price"] and visibility_settings.get('price', True):
-            price_class = "changed-attribute" if product["price"] != product["original_price"] else ""
-            st.markdown(f'<div class="product-price {price_class}">${product["price"]}</div>', unsafe_allow_html=True)
-        
-        # Attributes - properly formatted
-        for attr in project['attributes']:
-            if visibility_settings.get(attr, True):
-                current_val = product["attributes"][attr]
-                original_val = product["original_attributes"][attr]
-                attr_class = "changed-attribute" if current_val != original_val else ""
-                clean_attr = attr.replace('ATT ', '')
-                
-                st.markdown(f'''
-                <div class="attribute-row">
-                    <span class="attribute-label">{clean_attr}:</span>
-                    <span class="attribute-value {attr_class}">{current_val}</span>
-                </div>
-                ''', unsafe_allow_html=True)
-        
-        # Edit button
-        if st.button("✏️ Edit Product", key=f"edit_{product['original_index']}_{project['id']}", use_container_width=True):
-            st.session_state.editing_product = product
-            st.rerun()
-        
-        st.markdown('</div>', unsafe_allow_html=True)
+        # Create a clean bordered container
+        with st.container():
+            # Image section - no additional containers
+            if product["image_data"]:
+                st.image(product["image_data"], width=180, use_container_width=False)
+            else:
+                st.markdown("📷 *No Image Available*", unsafe_allow_html=True)
+            
+            # Description
+            if visibility_settings.get('description', True):
+                desc_class = "changed-attribute" if product["description"] != product["original_description"] else ""
+                if desc_class:
+                    st.markdown(f'**{product["description"]}**', unsafe_allow_html=False)
+                else:
+                    st.markdown(f'**{product["description"]}**')
+            
+            # Price
+            if product["price"] and visibility_settings.get('price', True):
+                price_class = "changed-attribute" if product["price"] != product["original_price"] else ""
+                st.markdown(f'<span style="color: #27ae60; font-size: 1.2em; font-weight: 600;">${product["price"]}</span>', unsafe_allow_html=True)
+            
+            # Attributes - clean display
+            for attr in project['attributes']:
+                if visibility_settings.get(attr, True):
+                    current_val = product["attributes"][attr]
+                    original_val = product["original_attributes"][attr]
+                    clean_attr = attr.replace('ATT ', '')
+                    
+                    if current_val != original_val:
+                        st.markdown(f'<small style="color: #e74c3c; font-weight: bold;"><strong>{clean_attr}:</strong> {current_val}</small>', unsafe_allow_html=True)
+                    else:
+                        st.markdown(f'<small><strong>{clean_attr}:</strong> {current_val}</small>', unsafe_allow_html=True)
+            
+            # Edit button
+            st.button("✏️ Edit Product", key=f"edit_{product['original_index']}_{project['id']}", use_container_width=True, on_click=lambda: setattr(st.session_state, 'editing_product', product))
 
 def show_edit_modal(product, project):
     """Show enhanced edit modal"""
