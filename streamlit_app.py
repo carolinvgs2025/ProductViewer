@@ -5,7 +5,8 @@ import tempfile
 import shutil
 from collections import defaultdict
 import base64
-from io import BytesIO
+from PIL import Image
+import io
 import zipfile
 import json
 from datetime import datetime
@@ -147,13 +148,38 @@ def get_filter_options(products, attributes):
             opts[attr].add(p["attributes"][attr])
     return {k: sorted(v) for k, v in opts.items()}
 
+def optimize_image_for_display(image_data, max_width=400):
+    """Optimize image for faster display while maintaining quality"""
+    try:
+        # Open image from bytes
+        img = Image.open(io.BytesIO(image_data))
+        
+        # Only resize if image is significantly larger than display size
+        if img.width > max_width * 2:
+            # Calculate new height maintaining aspect ratio
+            ratio = max_width / img.width
+            new_height = int(img.height * ratio)
+            img = img.resize((max_width, new_height), Image.Resampling.LANCZOS)
+        
+        # Convert to RGB if necessary (for JPEG output)
+        if img.mode in ('RGBA', 'LA', 'P'):
+            img = img.convert('RGB')
+        
+        # Save optimized image to bytes
+        output = io.BytesIO()
+        img.save(output, format='JPEG', quality=85, optimize=True)
+        return output.getvalue()
+    except Exception:
+        # Return original if optimization fails
+        return image_data
+
 def find_image_for_product(product_id, uploaded_images):
-    """Find matching image for a product ID"""
+    """Find matching image for a product ID and optimize for display"""
     for filename, file_data in uploaded_images.items():
         name_part = os.path.splitext(filename)[0].lower()
         if name_part == str(product_id).lower():
-            # Return the raw bytes without any processing to maintain quality
-            return file_data
+            # Optimize image for faster loading
+            return optimize_image_for_display(file_data)
     return None
 
 def load_and_parse_excel(uploaded_file, uploaded_images):
@@ -236,13 +262,13 @@ def display_product_card(product, col_index, project):
     with st.container():
         st.markdown('<div class="product-card">', unsafe_allow_html=True)
         
-        # Image
+        # Image (with faster JPEG rendering)
         if product["image_data"]:
             st.image(
                 product["image_data"], 
                 width=200, 
-                use_column_width=False,
-                output_format="PNG"
+                use_container_width=False,
+                output_format="JPEG"  # JPEG renders faster than PNG
             )
         else:
             st.write("📷 No image")
@@ -283,8 +309,8 @@ def show_edit_modal(product, project):
             st.image(
                 product["image_data"], 
                 width=300, 
-                use_column_width=False,
-                output_format="PNG"
+                use_container_width=False,
+                output_format="JPEG"  # JPEG is faster to render than PNG
             )
         else:
             st.write("📷 No image")
@@ -386,7 +412,7 @@ def create_download_excel(project):
     df = pd.DataFrame(data, columns=headers)
     
     # Convert to Excel bytes
-    output = BytesIO()
+    output = io.BytesIO()
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
         df.to_excel(writer, index=False, sheet_name='Products')
     
