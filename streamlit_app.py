@@ -79,11 +79,35 @@ st.markdown("""
         flex-shrink: 0;
     }
     
-    .product-image img {
+    /* Remove box/container above images */
+    div[data-testid="stImage"] {
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+    
+    div[data-testid="stImage"] > div {
+        margin: 0 !important;
+        padding: 0 !important;
+        border: none !important;
+        box-shadow: none !important;
+        background: none !important;
+    }
+    
+    /* Remove any container styling around images */
+    .element-container:has([data-testid="stImage"]) {
+        margin: 0 !important;
+        padding: 0 !important;
+        background: none !important;
+    }
+    
+    /* Clean up image display */
+    .product-card img {
+        display: block;
+        margin: 0 auto 10px auto;
+        border: none !important;
+        outline: none !important;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1) !important;
         border-radius: 10px;
-        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-        max-width: 100%;
-        height: auto;
     }
     
     .product-title {
@@ -297,16 +321,40 @@ def get_filter_options(products, attributes):
             opts[attr].add(p["attributes"][attr])
     return {k: sorted(list(v)) for k, v in opts.items()}
 
-def optimize_image_for_display(image_data):
-    """Return original image data for best quality"""
-    return image_data
+def optimize_image_for_display(image_data, max_width=600):
+    """Optimize image for faster display while maintaining quality"""
+    try:
+        img = Image.open(io.BytesIO(image_data))
+        
+        # Only resize if image is significantly larger than display size
+        if img.width > max_width * 1.5:  # Less aggressive resizing
+            ratio = max_width / img.width
+            new_height = int(img.height * ratio)
+            img = img.resize((max_width, new_height), Image.Resampling.LANCZOS)
+        
+        # Keep as PNG for better quality if it's already PNG
+        if img.format == 'PNG':
+            output = io.BytesIO()
+            img.save(output, format='PNG', optimize=True)
+            return output.getvalue()
+        
+        # Convert to RGB if necessary (for JPEG output)
+        if img.mode in ('RGBA', 'LA', 'P'):
+            img = img.convert('RGB')
+        
+        # Save optimized image to bytes with higher quality
+        output = io.BytesIO()
+        img.save(output, format='JPEG', quality=95, optimize=True)  # Higher quality
+        return output.getvalue()
+    except Exception:
+        return image_data
 
 def find_image_for_product(product_id, uploaded_images):
-    """Find matching image for a product ID"""
+    """Find matching image for a product ID and optimize for display"""
     for filename, file_data in uploaded_images.items():
         name_part = os.path.splitext(filename)[0].lower()
         if name_part == str(product_id).lower():
-            return file_data
+            return optimize_image_for_display(file_data)
     return None
 
 def load_and_parse_excel(uploaded_file, uploaded_images):
@@ -402,58 +450,45 @@ def sort_products(products, sort_field, sort_direction):
 def display_product_card(product, project, visibility_settings):
     """Display an enhanced product card"""
     with st.container():
-        # Create the card HTML
-        card_html = '<div class="product-card">'
+        st.markdown('<div class="product-card">', unsafe_allow_html=True)
         
         # Image section
-        card_html += '<div class="product-image">'
         if product["image_data"]:
-            # Display the actual image using Streamlit
-            card_html += '</div>'
-            st.markdown(card_html, unsafe_allow_html=True)
             st.image(product["image_data"], width=180, use_container_width=False)
         else:
-            card_html += '<div class="missing-image">📷 No Image Available</div></div>'
-            st.markdown(card_html, unsafe_allow_html=True)
-        
-        # Product info
-        info_html = ''
+            st.markdown('<div class="missing-image">📷 No Image Available</div>', unsafe_allow_html=True)
         
         # Description
         if visibility_settings.get('description', True):
             desc_class = "changed-attribute" if product["description"] != product["original_description"] else ""
-            info_html += f'<div class="product-title {desc_class}">{product["description"]}</div>'
+            st.markdown(f'<div class="product-title {desc_class}">{product["description"]}</div>', unsafe_allow_html=True)
         
         # Price
         if product["price"] and visibility_settings.get('price', True):
             price_class = "changed-attribute" if product["price"] != product["original_price"] else ""
-            info_html += f'<div class="product-price {price_class}">${product["price"]}</div>'
+            st.markdown(f'<div class="product-price {price_class}">${product["price"]}</div>', unsafe_allow_html=True)
         
-        # Attributes
-        info_html += '<div class="product-attributes">'
+        # Attributes - properly formatted
         for attr in project['attributes']:
             if visibility_settings.get(attr, True):
                 current_val = product["attributes"][attr]
                 original_val = product["original_attributes"][attr]
                 attr_class = "changed-attribute" if current_val != original_val else ""
                 clean_attr = attr.replace('ATT ', '')
-                info_html += f'''
+                
+                st.markdown(f'''
                 <div class="attribute-row">
-                    <div class="attribute-label">{clean_attr}:</div>
-                    <div class="attribute-value {attr_class}">{current_val}</div>
+                    <span class="attribute-label">{clean_attr}:</span>
+                    <span class="attribute-value {attr_class}">{current_val}</span>
                 </div>
-                '''
-        info_html += '</div>'
-        
-        # Close card
-        info_html += '</div>'
-        
-        st.markdown(info_html, unsafe_allow_html=True)
+                ''', unsafe_allow_html=True)
         
         # Edit button
         if st.button("✏️ Edit Product", key=f"edit_{product['original_index']}_{project['id']}", use_container_width=True):
             st.session_state.editing_product = product
             st.rerun()
+        
+        st.markdown('</div>', unsafe_allow_html=True)
 
 def show_edit_modal(product, project):
     """Show enhanced edit modal"""
