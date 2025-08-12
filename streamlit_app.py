@@ -93,10 +93,10 @@ def optimize_image_for_display(image_data):
     """Optimize image for display"""
     try:
         img = Image.open(io.BytesIO(image_data))
-        if img.width > 1200:  # Higher threshold
-            ratio = 1200 / img.width
+        if img.width > 3500:  # Higher threshold
+            ratio = 3500 / img.width
             new_height = int(img.height * ratio)
-            img = img.resize((1200, new_height), Image.Resampling.LANCZOS)
+            img = img.resize((3500, new_height), Image.Resampling.LANCZOS)
         
         # Keep PNG format for better quality
         if img.format == 'PNG' or img.mode == 'RGBA':
