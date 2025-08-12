@@ -51,6 +51,12 @@ st.markdown("""
         background-color: white;
         box-shadow: 2px 2px 5px rgba(0,0,0,0.1);
     }
+    .product-card img {
+        image-rendering: -webkit-optimize-contrast;
+        image-rendering: crisp-edges;
+        max-width: 100%;
+        height: auto;
+    }
     .changed-attribute {
         color: #B22222;
         font-weight: bold;
@@ -146,6 +152,7 @@ def find_image_for_product(product_id, uploaded_images):
     for filename, file_data in uploaded_images.items():
         name_part = os.path.splitext(filename)[0].lower()
         if name_part == str(product_id).lower():
+            # Return the raw bytes without any processing to maintain quality
             return file_data
     return None
 
@@ -231,7 +238,12 @@ def display_product_card(product, col_index, project):
         
         # Image
         if product["image_data"]:
-            st.image(product["image_data"], width=200)
+            st.image(
+                product["image_data"], 
+                width=200, 
+                use_column_width=False,
+                output_format="PNG"
+            )
         else:
             st.write("📷 No image")
         
@@ -268,7 +280,12 @@ def show_edit_modal(product, project):
     with col1:
         # Image
         if product["image_data"]:
-            st.image(product["image_data"], width=200)
+            st.image(
+                product["image_data"], 
+                width=300, 
+                use_column_width=False,
+                output_format="PNG"
+            )
         else:
             st.write("📷 No image")
     
@@ -490,10 +507,11 @@ def show_create_project_page():
     # Create project button
     if st.button("🚀 Create Project", type="primary", disabled=not uploaded_excel):
         if uploaded_excel:
-            # Process uploaded images
+            # Process uploaded images with quality preservation
             image_dict = {}
             if uploaded_images:
                 for img_file in uploaded_images:
+                    # Store raw bytes to maintain original quality
                     image_dict[img_file.name] = img_file.getvalue()
             
             # Parse Excel
