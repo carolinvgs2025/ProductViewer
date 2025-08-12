@@ -7,7 +7,6 @@ import json
 from datetime import datetime
 import uuid
 from collections import defaultdict
-import streamlit as st
 
 # Set page config
 st.set_page_config(
@@ -17,6 +16,53 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
+# Retina-crisp image helpers using <img> + srcset
+CARD_IMG_CSS_WIDTH = 200   # CSS width (px) in product cards
+MODAL_IMG_CSS_WIDTH = 300  # CSS width (px) in edit modal
+RETINA_FACTOR = 2          # 2x for HiDPI
+
+@st.cache_data(show_spinner=False)
+def _encode_png_uri(im: Image.Image) -> str:
+    """Return a PNG data URI for a PIL image (lossless, good for UI/text)."""
+    b = io.BytesIO()
+    im.save(b, format="PNG", optimize=True)
+    return "data:image/png;base64," + base64.b64encode(b.getvalue()).decode("ascii")
+
+def _resize_lanczos(img: Image.Image, target_w: int) -> Image.Image:
+    """High-quality downscale while preserving aspect ratio; no upscale."""
+    if img.width <= target_w:
+        return img.copy()
+    r = target_w / img.width
+    new_w = target_w
+    new_h = max(1, int(round(img.height * r)))
+    return img.resize((new_w, new_h), Image.Resampling.LANCZOS)
+
+@st.cache_data(show_spinner=False)
+def build_img_srcset(image_bytes: bytes, css_width: int, retina_factor: int = RETINA_FACTOR) -> str:
+    """
+    Return an <img> HTML string with srcset (1x/2x) as PNG data URIs.
+    - Corrects EXIF orientation.
+    - Downscales once to css_width and css_width*retina_factor (if larger).
+    - Keeps images sharp on Retina/HiDPI without Streamlit upscaling.
+    """
+    img = Image.open(io.BytesIO(image_bytes))
+    img = ImageOps.exif_transpose(img)
+
+    one_x = _resize_lanczos(img, css_width)
+    two_x = _resize_lanczos(img, css_width * retina_factor)
+
+    uri_1x = _encode_png_uri(one_x)
+    uri_2x = _encode_png_uri(two_x)
+
+    html = f"""
+    <img
+      src="{uri_1x}"
+      srcset="{uri_1x} 1x, {uri_2x} {retina_factor}x"
+      style="width:{css_width}px;height:auto;display:block;image-rendering:auto;"
+      alt=""
+    />
+    """
+    return html
 # Enhanced CSS styling
 st.markdown("""
 <style>
