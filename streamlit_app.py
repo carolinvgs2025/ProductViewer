@@ -1,18 +1,12 @@
-# Apply filtersdef sanitize_attr(attr):# Initialize session state for projects
-if 'projects' not in st.session_state:
-    st.session_state.projects = {}
-if 'current_project' not in st.session_state:
-    st.session_state.current_project = None
-if 'page' not in st.session_state:
-    st.session_state.page = 'projects'  # 'projects', 'create_project', 'grid'import streamlit as st
+import streamlit as st
 import pandas as pd
 import os
 import tempfile
 import shutil
 from collections import defaultdict
 import base64
-from PIL import Image
 import io
+from PIL import Image
 import zipfile
 import json
 from datetime import datetime
@@ -53,7 +47,7 @@ st.markdown("""
     .product-card {
         border: 1px solid #ddd;
         border-radius: 8px;
-        padding: 10px;
+        padding: 15px;
         margin: 5px;
         background-color: white;
         box-shadow: 2px 2px 5px rgba(0,0,0,0.1);
@@ -63,6 +57,18 @@ st.markdown("""
         image-rendering: crisp-edges;
         max-width: 100%;
         height: auto;
+        border: none;
+        outline: none;
+    }
+    /* Hide the container rectangle above images */
+    .element-container:has(img) {
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+    /* Remove default streamlit spacing around images */
+    div[data-testid="stImage"] > div {
+        margin: 0 !important;
+        padding: 0 !important;
     }
     .changed-attribute {
         color: #B22222;
@@ -108,6 +114,14 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+# Initialize session state for projects
+if 'projects' not in st.session_state:
+    st.session_state.projects = {}
+if 'current_project' not in st.session_state:
+    st.session_state.current_project = None
+if 'page' not in st.session_state:
+    st.session_state.page = 'projects'  # 'projects', 'create_project', 'grid'
+
 # Initialize session state for visibility controls
 if 'attribute_visibility' not in st.session_state:
     st.session_state.attribute_visibility = {}
@@ -152,6 +166,8 @@ def sort_products_by_attribute(products, attr, direction):
         return sorted(products, 
                      key=lambda x: x['attributes'].get(attr, '').lower(), 
                      reverse=(direction == 'desc'))
+
+def sanitize_attr(attr):
     """Sanitize attribute names for use as keys"""
     return attr.replace(' ', '_').replace('/', '_').replace('(', '').replace(')', '').replace('+', 'plus').replace(':', '')
 
@@ -564,7 +580,7 @@ def show_create_project_page():
     # Create project button
     if st.button("🚀 Create Project", type="primary", disabled=not uploaded_excel):
         if uploaded_excel:
-            # Process uploaded images with quality preservation
+            # Process uploaded images with quality preservation  
             image_dict = {}
             if uploaded_images:
                 for img_file in uploaded_images:
@@ -763,6 +779,8 @@ def show_grid_page():
         st.info(f"🔄 Sorted by **{clean_field}** ({direction_text})")
     
     st.markdown("---")
+    
+    # Apply filters
     filtered_products = apply_filters(
         project['products_data'],
         attribute_filters,
@@ -771,28 +789,4 @@ def show_grid_page():
     
     st.markdown(f"### Showing {len(filtered_products)} of {len(project['products_data'])} products")
     
-    # Display products in grid
-    if filtered_products:
-        # Create columns for grid layout
-        cols_per_row = 4
-        for i in range(0, len(filtered_products), cols_per_row):
-            cols = st.columns(cols_per_row)
-            for j, product in enumerate(filtered_products[i:i+cols_per_row]):
-                with cols[j]:
-                    display_product_card(product, j, project)
-    else:
-        st.info("No products match the current filters.")
-
-def main():
-    """Main application logic"""
-    
-    # Route to appropriate page
-    if st.session_state.page == 'projects':
-        show_projects_page()
-    elif st.session_state.page == 'create_project':
-        show_create_project_page()
-    elif st.session_state.page == 'grid':
-        show_grid_page()
-
-if __name__ == "__main__":
-    main()
+    # Display products in grid with performance optimization
