@@ -7,7 +7,6 @@ import json
 from datetime import datetime
 import uuid
 from collections import defaultdict
-import streamlit as st
 
 # Set page config
 st.set_page_config(
@@ -979,7 +978,7 @@ def show_grid_page():
                 visibility = st.checkbox(
                     f"👁️ {clean_name}",
                     value=st.session_state[visibility_key].get(field, True),
-                    key=f"vis_{field}_{project_id}"
+                    key=f"vis_{field}_{project_id}_{i}"  # Added index to make unique
                 )
                 st.session_state[visibility_key][field] = visibility
                 
@@ -991,7 +990,7 @@ def show_grid_page():
                                  st.session_state.current_sort['direction'] == 'asc')
                     if st.button(
                         "⬆️" if not asc_active else "🔼",
-                        key=f"sort_asc_{field}_{project_id}",
+                        key=f"sort_asc_{field}_{project_id}_{i}",  # Added index to make unique
                         help=f"Sort {clean_name} A→Z",
                         use_container_width=True
                     ):
@@ -1003,7 +1002,7 @@ def show_grid_page():
                                   st.session_state.current_sort['direction'] == 'desc')
                     if st.button(
                         "⬇️" if not desc_active else "🔽",
-                        key=f"sort_desc_{field}_{project_id}",
+                        key=f"sort_desc_{field}_{project_id}_{i}",  # Added index to make unique
                         help=f"Sort {clean_name} Z→A",
                         use_container_width=True
                     ):
@@ -1016,19 +1015,19 @@ def show_grid_page():
     col1, col2, col3, col4 = st.columns(4)
     
     with col1:
-        if st.button("👁️ Show All", key=f"show_all_{project_id}", use_container_width=True):
+        if st.button("👁️ Show All", key=f"show_all_{project_id}_controls", use_container_width=True):
             for field in all_fields:
                 st.session_state[visibility_key][field] = True
             st.rerun()
     
     with col2:
-        if st.button("🙈 Hide All", key=f"hide_all_{project_id}", use_container_width=True):
+        if st.button("🙈 Hide All", key=f"hide_all_{project_id}_controls", use_container_width=True):
             for field in all_fields:
                 st.session_state[visibility_key][field] = False
             st.rerun()
     
     with col3:
-        if st.button("🔄 Clear Sort", key=f"clear_sort_{project_id}", use_container_width=True):
+        if st.button("🔄 Clear Sort", key=f"clear_sort_{project_id}_controls", use_container_width=True):
             st.session_state.current_sort = {'field': None, 'direction': 'asc'}
             st.rerun()
     
