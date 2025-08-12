@@ -103,26 +103,45 @@ st.markdown("""
         text-align: center;
     }
     
-    /* Modal backdrop fix */
-    div[data-testid="stDialog"] {
+    /* Fixed Modal/Dialog CSS */
+    /* The main dialog container */
+    div[data-testid="stModal"] {
         position: fixed !important;
         inset: 0 !important;
-        width: 100vw !important;
-        height: 100vh !important;
-        background: rgba(0, 0, 0, 0.5) !important;
+        z-index: 1000 !important;
         display: flex !important;
         align-items: center !important;
         justify-content: center !important;
+        background-color: rgba(0, 0, 0, 0.5) !important;
     }
     
-    div[data-testid="stDialog"] > div:first-child {
-        width: 80vw !important;
-        max-width: 1200px !important;
-        max-height: 90vh !important;
-        overflow-y: auto !important;
+    /* The inner dialog content */
+    div[data-testid="stModal"] > div > div {
         background: white !important;
         border-radius: 10px !important;
-        position: relative !important;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15) !important;
+        max-height: 90vh !important;
+        overflow-y: auto !important;
+        width: 80vw !important;
+        max-width: 1200px !important;
+    }
+    
+    /* Alternative selectors for Streamlit dialog */
+    div[role="dialog"] {
+        background: white !important;
+        border-radius: 10px !important;
+        padding: 20px !important;
+    }
+    
+    /* Fix for the dialog backdrop */
+    .stDialog {
+        background-color: white !important;
+    }
+    
+    /* Ensure dialog content is visible */
+    div[data-testid="stDialogContent"] {
+        background: white !important;
+        padding: 20px !important;
     }
 </style>
 """, unsafe_allow_html=True)
