@@ -1,16 +1,12 @@
 import streamlit as st
 import pandas as pd
 import os
-import tempfile
-import shutil
-from collections import defaultdict
-import base64
 import io
 from PIL import Image
-import zipfile
 import json
 from datetime import datetime
 import uuid
+from collections import defaultdict
 
 # Set page config
 st.set_page_config(
@@ -20,54 +16,261 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Hide Streamlit style elements
-hide_streamlit_style = """
+# Enhanced CSS styling
+st.markdown("""
 <style>
-#MainMenu {visibility: hidden;}
-footer {visibility: hidden;}
-header {visibility: hidden;}
-.stDeployButton {display:none;}
-div[data-testid="stToolbar"] {visibility: hidden;}
-div[data-testid="stDecoration"] {visibility: hidden;}
-div[data-testid="stStatusWidget"] {visibility: hidden;}
-#root > div:nth-child(1) > div > div > div > div > section > div {padding-top: 0rem;}
-.product-card {
-    border: 1px solid #ddd;
-    border-radius: 8px;
-    padding: 15px;
-    margin: 5px;
-    background-color: white;
-    box-shadow: 2px 2px 5px rgba(0,0,0,0.1);
-}
-.product-card img {
-    max-width: 100%;
-    height: auto;
-    border: none;
-    outline: none;
-}
-.changed-attribute {
-    color: #B22222;
-    font-weight: bold;
-}
-.project-card {
-    border: 1px solid #ddd;
-    border-radius: 10px;
-    padding: 20px;
-    margin: 10px 0;
-    background-color: white;
-    box-shadow: 2px 2px 8px rgba(0,0,0,0.1);
-}
-.new-project-section {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: white;
-    padding: 30px;
-    border-radius: 15px;
-    margin: 20px 0;
-    text-align: center;
-}
+    /* Hide Streamlit elements */
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    header {visibility: hidden;}
+    .stDeployButton {display: none;}
+    
+    /* Main container styling */
+    .main .block-container {
+        padding-top: 1rem;
+        padding-bottom: 2rem;
+    }
+    
+    /* Header styling */
+    .app-header {
+        background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+        padding: 2rem;
+        border-radius: 15px;
+        margin-bottom: 2rem;
+        text-align: center;
+        color: white;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+    }
+    
+    .app-header h1 {
+        margin: 0;
+        font-size: 2.5rem;
+        font-weight: 700;
+    }
+    
+    .app-header p {
+        margin: 0.5rem 0 0 0;
+        font-size: 1.2rem;
+        opacity: 0.9;
+    }
+    
+    /* Product card styling */
+    .product-card {
+        background: white;
+        border-radius: 15px;
+        padding: 1.5rem;
+        margin: 1rem 0;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        border: 1px solid #e1e5e9;
+        transition: all 0.3s ease;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+    }
+    
+    .product-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+    }
+    
+    .product-image {
+        text-align: center;
+        margin-bottom: 1rem;
+        flex-shrink: 0;
+    }
+    
+    .product-image img {
+        border-radius: 10px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        max-width: 100%;
+        height: auto;
+    }
+    
+    .product-title {
+        font-weight: 700;
+        font-size: 1.1rem;
+        margin-bottom: 0.5rem;
+        color: #2c3e50;
+        line-height: 1.3;
+    }
+    
+    .product-price {
+        font-size: 1.2rem;
+        font-weight: 600;
+        color: #27ae60;
+        margin-bottom: 1rem;
+    }
+    
+    .product-attributes {
+        flex-grow: 1;
+    }
+    
+    .attribute-row {
+        margin-bottom: 0.5rem;
+        padding: 0.3rem 0;
+        border-bottom: 1px solid #f1f3f4;
+    }
+    
+    .attribute-label {
+        font-weight: 600;
+        color: #555;
+        font-size: 0.9rem;
+    }
+    
+    .attribute-value {
+        color: #333;
+        font-size: 0.9rem;
+    }
+    
+    .changed-attribute {
+        color: #e74c3c;
+        font-weight: 700;
+    }
+    
+    /* View controls styling */
+    .view-controls {
+        background: #f8f9fa;
+        border-radius: 15px;
+        padding: 1.5rem;
+        margin: 1rem 0;
+        border: 1px solid #e1e5e9;
+    }
+    
+    .controls-header {
+        font-size: 1.3rem;
+        font-weight: 600;
+        margin-bottom: 1rem;
+        color: #2c3e50;
+    }
+    
+    .control-item {
+        background: white;
+        border-radius: 8px;
+        padding: 1rem;
+        margin: 0.5rem;
+        border: 1px solid #dee2e6;
+        text-align: center;
+    }
+    
+    .control-label {
+        font-weight: 500;
+        margin-bottom: 0.5rem;
+        font-size: 0.9rem;
+        color: #555;
+    }
+    
+    .sort-buttons {
+        display: flex;
+        gap: 0.3rem;
+        justify-content: center;
+        margin-top: 0.5rem;
+    }
+    
+    .sort-btn {
+        background: #667eea;
+        color: white;
+        border: none;
+        border-radius: 5px;
+        padding: 0.3rem 0.6rem;
+        cursor: pointer;
+        transition: all 0.2s;
+        font-size: 0.8rem;
+    }
+    
+    .sort-btn:hover {
+        background: #5a6fd8;
+        transform: scale(1.05);
+    }
+    
+    .sort-btn.active {
+        background: #2c3e50;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+    }
+    
+    /* Action buttons */
+    .action-btn {
+        background: linear-gradient(45deg, #667eea, #764ba2);
+        color: white;
+        border: none;
+        border-radius: 10px;
+        padding: 0.7rem 1.5rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    
+    .action-btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+    }
+    
+    /* Project cards */
+    .project-card {
+        background: white;
+        border-radius: 15px;
+        padding: 2rem;
+        margin: 1rem 0;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+        border: 1px solid #e1e5e9;
+        transition: all 0.3s ease;
+    }
+    
+    .project-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 8px 30px rgba(0,0,0,0.15);
+    }
+    
+    .project-title {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: #2c3e50;
+        margin-bottom: 0.5rem;
+    }
+    
+    .project-stats {
+        color: #666;
+        font-size: 0.95rem;
+        margin-top: 1rem;
+    }
+    
+    /* Missing image styling */
+    .missing-image {
+        background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+        border-radius: 10px;
+        padding: 2rem;
+        text-align: center;
+        color: #666;
+        font-size: 1.1rem;
+        margin-bottom: 1rem;
+    }
+    
+    /* Filter sidebar */
+    .sidebar .stSelectbox > div > div {
+        background-color: white;
+        border-radius: 8px;
+    }
+    
+    /* Custom scrollbar */
+    ::-webkit-scrollbar {
+        width: 8px;
+    }
+    
+    ::-webkit-scrollbar-track {
+        background: #f1f1f1;
+        border-radius: 10px;
+    }
+    
+    ::-webkit-scrollbar-thumb {
+        background: #667eea;
+        border-radius: 10px;
+    }
+    
+    ::-webkit-scrollbar-thumb:hover {
+        background: #5a6fd8;
+    }
 </style>
-"""
-st.markdown(hide_streamlit_style, unsafe_allow_html=True)
+""", unsafe_allow_html=True)
 
 # Initialize session state
 if 'projects' not in st.session_state:
@@ -76,10 +279,15 @@ if 'current_project' not in st.session_state:
     st.session_state.current_project = None
 if 'page' not in st.session_state:
     st.session_state.page = 'projects'
+if 'current_sort' not in st.session_state:
+    st.session_state.current_sort = {'field': None, 'direction': 'asc'}
+
+# Default missing image (base64 encoded placeholder)
+DEFAULT_MISSING_IMAGE = """data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgZmlsbD0iI2Y4ZjlmYSIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTQiIGZpbGw9IiM2NjYiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGR5PSIuM2VtIj7wn5O3IE5vIEltYWdlPC90ZXh0Pjwvc3ZnPg=="""
 
 def sanitize_attr(attr):
     """Sanitize attribute names for use as keys"""
-    return attr.replace(' ', '_').replace('/', '_').replace('(', '').replace(')', '').replace('+', 'plus').replace(':', '')
+    return attr.replace(' ', '_').replace('/', '_').replace('(', '').replace(')', '').replace('+', 'plus').replace(':', '').replace('#', 'num')
 
 def get_filter_options(products, attributes):
     """Generate filter options from products data"""
@@ -87,42 +295,18 @@ def get_filter_options(products, attributes):
     for p in products:
         for attr in attributes:
             opts[attr].add(p["attributes"][attr])
-    return {k: sorted(v) for k, v in opts.items()}
+    return {k: sorted(list(v)) for k, v in opts.items()}
 
-def optimize_image_for_display(image_data, max_width=600):
-    """Optimize image for faster display while maintaining quality"""
-    try:
-        img = Image.open(io.BytesIO(image_data))
-        
-        # Only resize if image is significantly larger than display size
-        if img.width > max_width * 1.5:  # Less aggressive resizing
-            ratio = max_width / img.width
-            new_height = int(img.height * ratio)
-            img = img.resize((max_width, new_height), Image.Resampling.LANCZOS)
-        
-        # Keep as PNG for better quality if it's already PNG
-        if img.format == 'PNG':
-            output = io.BytesIO()
-            img.save(output, format='PNG', optimize=True)
-            return output.getvalue()
-        
-        # Convert to RGB if necessary (for JPEG output)
-        if img.mode in ('RGBA', 'LA', 'P'):
-            img = img.convert('RGB')
-        
-        # Save optimized image to bytes with higher quality
-        output = io.BytesIO()
-        img.save(output, format='JPEG', quality=95, optimize=True)  # Higher quality
-        return output.getvalue()
-    except Exception:
-        return image_data
+def optimize_image_for_display(image_data):
+    """Return original image data for best quality"""
+    return image_data
 
 def find_image_for_product(product_id, uploaded_images):
     """Find matching image for a product ID"""
     for filename, file_data in uploaded_images.items():
         name_part = os.path.splitext(filename)[0].lower()
         if name_part == str(product_id).lower():
-            return optimize_image_for_display(file_data)
+            return file_data
     return None
 
 def load_and_parse_excel(uploaded_file, uploaded_images):
@@ -135,17 +319,17 @@ def load_and_parse_excel(uploaded_file, uploaded_images):
     
     attributes = [h for h in headers if str(h).startswith("ATT")]
     distributions = [h for h in headers if str(h).startswith("DIST")]
-    price_col = headers[-1] if "price" in headers[-1].lower() else None
+    price_col = headers[-1] if any("price" in str(h).lower() for h in headers) else None
     
     products = []
     for idx, row in df.iterrows():
         product_id = str(row.iloc[0]).strip()
         description = str(row.iloc[1]).strip()
-        price_str = f"{row[price_col]:.2f}" if price_col and not pd.isna(row[price_col]) else ""
+        price_str = f"{float(row[price_col]):.2f}" if price_col and not pd.isna(row[price_col]) else ""
         
         image_data = find_image_for_product(product_id, uploaded_images)
-        attr_data = {a: str(row[a]).strip() for a in attributes}
-        dist_data = {d: "X" in str(row[d]).upper() for d in distributions}
+        attr_data = {a: str(row[a]).strip() if pd.notna(row[a]) else "" for a in attributes}
+        dist_data = {d: "X" in str(row[d]).upper() if pd.notna(row[d]) else False for d in distributions}
         
         products.append({
             "original_index": idx,
@@ -182,13 +366,12 @@ def create_new_project(name, description=""):
     st.session_state.projects[project_id] = project
     return project_id
 
-def apply_filters(products, attribute_filters, distribution_filters):
+def apply_filters(products, attribute_filters):
     """Apply filters to products"""
     filtered = []
     for product in products:
         show = True
         
-        # Apply attribute filters
         for attr, selected_values in attribute_filters.items():
             if selected_values and 'All' not in selected_values:
                 product_value = product["attributes"].get(attr, "")
@@ -201,126 +384,193 @@ def apply_filters(products, attribute_filters, distribution_filters):
     
     return filtered
 
-def display_product_card(product, project):
-    """Display a product card"""
-    project_id = project['id']
-    visibility_key = f"visibility_{project_id}"
+def sort_products(products, sort_field, sort_direction):
+    """Sort products by specified field and direction"""
+    if not sort_field:
+        return products
     
-    if visibility_key not in st.session_state:
-        st.session_state[visibility_key] = {attr: True for attr in project['attributes']}
-        st.session_state[visibility_key]['description'] = True
-        st.session_state[visibility_key]['price'] = True
-    
-    with st.container():
-        st.markdown('<div class="product-card">', unsafe_allow_html=True)
-        
-        # Image
-        if product["image_data"]:
-            st.image(product["image_data"], width=200, use_container_width=False)
+    def get_sort_value(product):
+        if sort_field == 'description':
+            return product['description'].lower()
+        elif sort_field == 'price':
+            return float(product['price']) if product['price'] else 0
         else:
-            st.markdown("📷 *No image*")
+            return product['attributes'].get(sort_field, '').lower()
+    
+    return sorted(products, key=get_sort_value, reverse=(sort_direction == 'desc'))
+
+def display_product_card(product, project, visibility_settings):
+    """Display an enhanced product card"""
+    with st.container():
+        # Create the card HTML
+        card_html = '<div class="product-card">'
+        
+        # Image section
+        card_html += '<div class="product-image">'
+        if product["image_data"]:
+            # Display the actual image using Streamlit
+            card_html += '</div>'
+            st.markdown(card_html, unsafe_allow_html=True)
+            st.image(product["image_data"], width=180, use_container_width=False)
+        else:
+            card_html += '<div class="missing-image">📷 No Image Available</div></div>'
+            st.markdown(card_html, unsafe_allow_html=True)
+        
+        # Product info
+        info_html = ''
         
         # Description
-        if st.session_state[visibility_key].get('description', True):
+        if visibility_settings.get('description', True):
             desc_class = "changed-attribute" if product["description"] != product["original_description"] else ""
-            st.markdown(f'<p class="{desc_class}"><strong>{product["description"]}</strong></p>', unsafe_allow_html=True)
+            info_html += f'<div class="product-title {desc_class}">{product["description"]}</div>'
         
         # Price
-        if product["price"] and st.session_state[visibility_key].get('price', True):
+        if product["price"] and visibility_settings.get('price', True):
             price_class = "changed-attribute" if product["price"] != product["original_price"] else ""
-            st.markdown(f'<p class="{price_class}">Price: ${product["price"]}</p>', unsafe_allow_html=True)
+            info_html += f'<div class="product-price {price_class}">${product["price"]}</div>'
         
         # Attributes
+        info_html += '<div class="product-attributes">'
         for attr in project['attributes']:
-            if st.session_state[visibility_key].get(attr, True):
+            if visibility_settings.get(attr, True):
                 current_val = product["attributes"][attr]
                 original_val = product["original_attributes"][attr]
                 attr_class = "changed-attribute" if current_val != original_val else ""
                 clean_attr = attr.replace('ATT ', '')
-                st.markdown(f'<small class="{attr_class}"><strong>{clean_attr}:</strong> {current_val}</small>', unsafe_allow_html=True)
+                info_html += f'''
+                <div class="attribute-row">
+                    <div class="attribute-label">{clean_attr}:</div>
+                    <div class="attribute-value {attr_class}">{current_val}</div>
+                </div>
+                '''
+        info_html += '</div>'
+        
+        # Close card
+        info_html += '</div>'
+        
+        st.markdown(info_html, unsafe_allow_html=True)
         
         # Edit button
-        if st.button(f"Edit", key=f"edit_{product['original_index']}_{project['id']}"):
+        if st.button("✏️ Edit Product", key=f"edit_{product['original_index']}_{project['id']}", use_container_width=True):
             st.session_state.editing_product = product
             st.rerun()
-        
-        st.markdown('</div>', unsafe_allow_html=True)
 
 def show_edit_modal(product, project):
-    """Show edit modal"""
-    st.subheader(f"Edit Product: {product['product_id']}")
+    """Show enhanced edit modal"""
+    st.markdown('<div class="app-header"><h1>✏️ Edit Product</h1><p>Make changes to product details</p></div>', unsafe_allow_html=True)
     
     col1, col2 = st.columns([1, 2])
     
     with col1:
+        st.markdown("### Product Image")
         if product["image_data"]:
             st.image(product["image_data"], width=300, use_container_width=False)
         else:
-            st.markdown("📷 *No image*")
+            st.markdown('<div class="missing-image">📷 No Image Available</div>', unsafe_allow_html=True)
     
     with col2:
-        new_description = st.text_input("Description", value=product["description"])
-        new_price = st.text_input("Price", value=product["price"])
+        st.markdown("### Product Details")
         
-        st.subheader("Attributes")
+        # Description
+        new_description = st.text_input("📝 Product Description", value=product["description"], key="edit_desc")
+        
+        # Price
+        new_price = st.text_input("💰 Price ($)", value=product["price"], key="edit_price")
+        
+        # Attributes
+        st.markdown("### 🏷️ Attributes")
         new_attributes = {}
+        
         for attr in project['attributes']:
             current_val = product["attributes"][attr]
             options = project['filter_options'].get(attr, [current_val])
             if current_val not in options:
-                options.append(current_val)
+                options = [current_val] + options
             
             clean_attr = attr.replace('ATT ', '')
-            new_attributes[attr] = st.selectbox(f"{clean_attr}", options, index=options.index(current_val))
+            
+            # Use selectbox with option to add custom value
+            col_select, col_custom = st.columns([2, 1])
+            
+            with col_select:
+                selected = st.selectbox(
+                    f"{clean_attr}",
+                    options + ["[Add Custom Value]"],
+                    index=0 if current_val in options else len(options),
+                    key=f"select_{attr}"
+                )
+            
+            with col_custom:
+                if selected == "[Add Custom Value]":
+                    custom_val = st.text_input("Custom", value=current_val, key=f"custom_{attr}")
+                    new_attributes[attr] = custom_val
+                else:
+                    new_attributes[attr] = selected
         
+        # Action buttons
+        st.markdown("---")
         col_save, col_cancel = st.columns(2)
         
         with col_save:
-            if st.button("Save Changes", type="primary"):
+            if st.button("💾 Save Changes", type="primary", use_container_width=True):
+                # Update product data
                 idx = product["original_index"]
                 if idx not in project['pending_changes']:
                     project['pending_changes'][idx] = {}
                 
+                # Update description
                 if new_description != product["original_description"]:
                     project['pending_changes'][idx]["description"] = new_description
                     product["description"] = new_description
                 
+                # Update price
                 if new_price != product["original_price"]:
                     project['pending_changes'][idx]["price"] = new_price
                     product["price"] = new_price
                 
+                # Update attributes
                 for attr, new_val in new_attributes.items():
                     if new_val != product["original_attributes"][attr]:
                         project['pending_changes'][idx][attr] = new_val
                         product["attributes"][attr] = new_val
                 
-                st.success("Changes saved!")
+                project['last_modified'] = datetime.now().isoformat()
+                st.success("✅ Changes saved successfully!")
+                st.balloons()
                 del st.session_state.editing_product
                 st.rerun()
         
         with col_cancel:
-            if st.button("Cancel"):
+            if st.button("❌ Cancel", use_container_width=True):
                 del st.session_state.editing_product
                 st.rerun()
 
 def create_download_excel(project):
-    """Create Excel download"""
+    """Create Excel download with all changes"""
     if not project['products_data']:
         return None
     
     data = []
     for product in project['products_data']:
         row = [product["product_id"], product["description"]]
+        
+        # Add attributes
         for attr in project['attributes']:
             row.append(product["attributes"][attr])
+        
+        # Add distributions
         for dist in project['distributions']:
             row.append("X" if product["distribution"][dist] else "")
+        
+        # Add price
         row.append(float(product["price"]) if product["price"] else 0)
         data.append(row)
     
+    # Create headers
     headers = ["Product ID", "Description"] + project['attributes'] + project['distributions'] + ["Price"]
     df = pd.DataFrame(data, columns=headers)
     
+    # Convert to Excel bytes
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
         df.to_excel(writer, index=False, sheet_name='Products')
@@ -328,23 +578,25 @@ def create_download_excel(project):
     return output.getvalue()
 
 def show_projects_page():
-    """Display projects page"""
-    st.title("📁 Product Grid Projects")
+    """Display enhanced projects page"""
+    # Header
+    st.markdown('''
+    <div class="app-header">
+        <h1>📊 Interactive Product Grid</h1>
+        <p>Manage your product catalogs with ease</p>
+    </div>
+    ''', unsafe_allow_html=True)
     
-    with st.container():
-        st.markdown("""
-        <div class="new-project-section">
-            <h2>🚀 Start a New Project</h2>
-            <p>Create a new product grid project with your Excel data and images</p>
-        </div>
-        """, unsafe_allow_html=True)
-        
-        if st.button("➕ Create New Project", type="primary", use_container_width=True):
+    # New Project Section
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        if st.button("🚀 Create New Project", type="primary", use_container_width=True):
             st.session_state.page = 'create_project'
             st.rerun()
     
+    # Existing Projects
     if st.session_state.projects:
-        st.header("📋 Your Projects")
+        st.markdown("## 📁 Your Projects")
         
         sorted_projects = sorted(
             st.session_state.projects.items(),
@@ -359,130 +611,192 @@ def show_projects_page():
                 col1, col2, col3 = st.columns([3, 1, 1])
                 
                 with col1:
-                    st.markdown(f"### {project['name']}")
+                    st.markdown(f'<div class="project-title">{project["name"]}</div>', unsafe_allow_html=True)
                     if project['description']:
                         st.write(project['description'])
                     
+                    # Stats
                     num_products = len(project['products_data'])
                     num_attributes = len(project['attributes'])
                     pending_changes = len(project['pending_changes'])
+                    last_modified = datetime.fromisoformat(project['last_modified']).strftime("%Y-%m-%d %H:%M")
                     
-                    st.write(f"📦 {num_products} products | 🏷️ {num_attributes} attributes | ✏️ {pending_changes} pending changes")
+                    st.markdown(f'''
+                    <div class="project-stats">
+                        📦 <strong>{num_products}</strong> products | 
+                        🏷️ <strong>{num_attributes}</strong> attributes | 
+                        ✏️ <strong>{pending_changes}</strong> pending changes<br>
+                        🕒 Last modified: {last_modified}
+                    </div>
+                    ''', unsafe_allow_html=True)
                 
                 with col2:
-                    if st.button("Open", key=f"open_{project_id}", type="primary"):
+                    if st.button("📂 Open", key=f"open_{project_id}", type="primary"):
                         st.session_state.current_project = project_id
                         st.session_state.page = 'grid'
                         st.rerun()
                 
                 with col3:
                     if st.button("🗑️ Delete", key=f"delete_{project_id}"):
-                        del st.session_state.projects[project_id]
-                        st.rerun()
+                        if st.session_state.get('confirm_delete') == project_id:
+                            del st.session_state.projects[project_id]
+                            if 'confirm_delete' in st.session_state:
+                                del st.session_state.confirm_delete
+                            st.rerun()
+                        else:
+                            st.session_state.confirm_delete = project_id
+                            st.warning("Click again to confirm deletion")
                 
                 st.markdown('</div>', unsafe_allow_html=True)
     else:
-        st.info("No projects yet. Create your first project to get started!")
+        st.info("🌟 No projects yet. Create your first project to get started!")
 
 def show_create_project_page():
-    """Display create project page"""
-    st.title("🆕 Create New Project")
+    """Display enhanced create project page"""
+    # Header
+    st.markdown('''
+    <div class="app-header">
+        <h1>🚀 Create New Project</h1>
+        <p>Upload your Excel data and product images</p>
+    </div>
+    ''', unsafe_allow_html=True)
     
-    if st.button("← Back to Projects"):
+    # Back button
+    if st.button("← Back to Projects", key="back_to_projects"):
         st.session_state.page = 'projects'
         st.rerun()
     
-    project_name = st.text_input("Project Name", placeholder="e.g., Q1 2024 Product Launch")
-    project_description = st.text_area("Description (optional)", placeholder="Brief description of this project...")
+    # Project details
+    st.markdown("## 📝 Project Information")
+    project_name = st.text_input("Project Name *", placeholder="e.g., Q1 2024 Product Launch")
+    project_description = st.text_area("Description", placeholder="Brief description of this project...")
     
-    if not project_name:
-        st.warning("Please enter a project name to continue.")
+    if not project_name.strip():
+        st.warning("⚠️ Please enter a project name to continue.")
         return
     
+    # File uploads
+    st.markdown("## 📁 Upload Files")
     col1, col2 = st.columns(2)
     
     with col1:
-        st.subheader("📊 Excel File")
-        uploaded_excel = st.file_uploader("Upload Product Attribute Grid", type=['xlsx', 'xls'], key="create_excel")
+        st.markdown("### 📊 Excel File")
+        uploaded_excel = st.file_uploader(
+            "Upload Product Attribute Grid", 
+            type=['xlsx', 'xls'],
+            help="Excel file with Product ID, Description, ATT columns, DIST columns, and Price"
+        )
+        
         if uploaded_excel:
             st.success(f"✅ {uploaded_excel.name}")
     
     with col2:
-        st.subheader("🖼️ Product Images")
-        uploaded_images = st.file_uploader("Upload Product Images", type=['png', 'jpg', 'jpeg'], accept_multiple_files=True, key="create_images")
+        st.markdown("### 🖼️ Product Images")
+        uploaded_images = st.file_uploader(
+            "Upload Product Images",
+            type=['png', 'jpg', 'jpeg'],
+            accept_multiple_files=True,
+            help="Upload images named with Product IDs (e.g., '123.jpg' for product ID '123')"
+        )
+        
         if uploaded_images:
             st.success(f"✅ {len(uploaded_images)} images uploaded")
     
-    if st.button("🚀 Create Project", type="primary", disabled=not uploaded_excel):
-        if uploaded_excel:
-            image_dict = {}
-            if uploaded_images:
-                for img_file in uploaded_images:
-                    image_dict[img_file.name] = img_file.getvalue()
-            
-            products, attributes, distributions, filter_options = load_and_parse_excel(uploaded_excel, image_dict)
-            
-            project_id = create_new_project(project_name, project_description)
-            project = st.session_state.projects[project_id]
-            
-            project['products_data'] = products
-            project['attributes'] = attributes
-            project['distributions'] = distributions
-            project['filter_options'] = filter_options
-            project['uploaded_images'] = image_dict
-            project['excel_filename'] = uploaded_excel.name
-            
-            st.success(f"✅ Project '{project_name}' created with {len(products)} products!")
-            st.balloons()
-            
-            st.session_state.current_project = project_id
-            st.session_state.page = 'grid'
-            st.rerun()
+    # Create button
+    st.markdown("---")
+    col1, col2, col3 = st.columns([1, 2, 1])
+    
+    with col2:
+        if st.button("🎯 Create Project", type="primary", disabled=not uploaded_excel, use_container_width=True):
+            if uploaded_excel:
+                with st.spinner("🔄 Processing files..."):
+                    # Process images
+                    image_dict = {}
+                    if uploaded_images:
+                        for img_file in uploaded_images:
+                            image_dict[img_file.name] = img_file.getvalue()
+                    
+                    # Parse Excel
+                    products, attributes, distributions, filter_options = load_and_parse_excel(uploaded_excel, image_dict)
+                    
+                    # Create project
+                    project_id = create_new_project(project_name.strip(), project_description.strip())
+                    project = st.session_state.projects[project_id]
+                    
+                    # Store data
+                    project['products_data'] = products
+                    project['attributes'] = attributes
+                    project['distributions'] = distributions
+                    project['filter_options'] = filter_options
+                    project['uploaded_images'] = image_dict
+                    project['excel_filename'] = uploaded_excel.name
+                
+                st.success(f"🎉 Project '{project_name}' created with {len(products)} products!")
+                st.balloons()
+                
+                # Redirect to grid
+                st.session_state.current_project = project_id
+                st.session_state.page = 'grid'
+                st.rerun()
 
 def show_grid_page():
-    """Display grid page"""
+    """Display enhanced grid page"""
     if not st.session_state.current_project or st.session_state.current_project not in st.session_state.projects:
-        st.error("No project selected or project not found.")
+        st.error("❌ No project selected or project not found.")
         st.session_state.page = 'projects'
         st.rerun()
         return
     
     project = st.session_state.projects[st.session_state.current_project]
     
-    col1, col2 = st.columns([3, 1])
-    with col1:
-        st.title(f"📊 {project['name']}")
-        if project['description']:
-            st.write(project['description'])
-    
-    with col2:
-        if st.button("← Back to Projects"):
-            st.session_state.page = 'projects'
-            st.rerun()
-    
+    # Show edit modal if editing
     if 'editing_product' in st.session_state:
         show_edit_modal(st.session_state.editing_product, project)
         return
     
+    # Header
+    col1, col2 = st.columns([3, 1])
+    with col1:
+        st.markdown(f'''
+        <div class="app-header">
+            <h1>📊 {project['name']}</h1>
+            <p>{project['description'] if project['description'] else 'Product Grid View'}</p>
+        </div>
+        ''', unsafe_allow_html=True)
+    
+    with col2:
+        st.markdown("<br>", unsafe_allow_html=True)  # Spacing
+        if st.button("← Back to Projects", key="back_from_grid"):
+            st.session_state.page = 'projects'
+            st.rerun()
+    
     # Sidebar filters
     with st.sidebar:
-        st.header("🔍 Filters")
+        st.markdown("### 🔍 Filters")
         
         attribute_filters = {}
         for attr in project['attributes']:
             clean_attr = attr.replace('ATT ', '')
             options = ['All'] + project['filter_options'].get(attr, [])
-            selected = st.multiselect(clean_attr, options, default=['All'], key=f"filter_{sanitize_attr(attr)}_{project['id']}")
+            selected = st.multiselect(
+                clean_attr,
+                options,
+                default=['All'],
+                key=f"filter_{sanitize_attr(attr)}_{project['id']}"
+            )
             attribute_filters[attr] = selected
     
     # Action buttons
+    st.markdown("## ⚡ Actions")
     col1, col2, col3 = st.columns(3)
     
     with col1:
         if project['pending_changes']:
-            if st.button("🔄 Apply Changes", type="primary"):
-                st.success("✅ Changes applied!")
+            if st.button("💾 Apply Changes", type="primary", use_container_width=True):
+                st.success("✅ All changes have been applied!")
                 project['pending_changes'] = {}
+                project['last_modified'] = datetime.now().isoformat()
+                st.balloons()
     
     with col2:
         excel_data = create_download_excel(project)
@@ -491,21 +805,31 @@ def show_grid_page():
                 "📥 Download Excel",
                 data=excel_data,
                 file_name=f"{project['name']}_updated.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                use_container_width=True
             )
     
     with col3:
-        if st.button("🔄 Reset Changes"):
-            project['pending_changes'] = {}
-            for product in project['products_data']:
-                product['description'] = product['original_description']
-                product['price'] = product['original_price']
-                product['attributes'] = product['original_attributes'].copy()
-            st.rerun()
+        if st.button("🔄 Reset All Changes", use_container_width=True):
+            if st.session_state.get('confirm_reset') == project['id']:
+                project['pending_changes'] = {}
+                for product in project['products_data']:
+                    product['description'] = product['original_description']
+                    product['price'] = product['original_price']
+                    product['attributes'] = product['original_attributes'].copy()
+                project['last_modified'] = datetime.now().isoformat()
+                if 'confirm_reset' in st.session_state:
+                    del st.session_state.confirm_reset
+                st.success("🔄 All changes have been reset!")
+                st.rerun()
+            else:
+                st.session_state.confirm_reset = project['id']
+                st.warning("Click again to confirm reset")
     
-    # View controls
-    st.subheader("🎛️ View Controls")
+    # View Controls Section
+    st.markdown("## 🎛️ View & Sort Controls")
     
+    # Get visibility settings
     project_id = project['id']
     visibility_key = f"visibility_{project_id}"
     
@@ -514,34 +838,110 @@ def show_grid_page():
         st.session_state[visibility_key]['description'] = True
         st.session_state[visibility_key]['price'] = True
     
-    # Create view controls in columns
-    all_fields = project['attributes'] + ['description', 'price']
-    cols = st.columns(min(len(all_fields), 5))
+    # Create view controls
+    with st.container():
+        st.markdown('<div class="view-controls">', unsafe_allow_html=True)
+        st.markdown('<div class="controls-header">🔧 Field Visibility & Sorting</div>', unsafe_allow_html=True)
+        
+        all_fields = project['attributes'] + ['description', 'price']
+        
+        # Create responsive columns
+        num_cols = min(5, len(all_fields))
+        cols = st.columns(num_cols)
+        
+        for i, field in enumerate(all_fields):
+            with cols[i % num_cols]:
+                clean_name = field.replace('ATT ', '') if field.startswith('ATT') else field.title()
+                
+                # Visibility checkbox
+                visibility = st.checkbox(
+                    f"👁️ Show {clean_name}",
+                    value=st.session_state[visibility_key].get(field, True),
+                    key=f"vis_{field}_{project_id}"
+                )
+                st.session_state[visibility_key][field] = visibility
+                
+                # Sort buttons
+                col_asc, col_desc = st.columns(2)
+                
+                with col_asc:
+                    asc_active = (st.session_state.current_sort['field'] == field and 
+                                 st.session_state.current_sort['direction'] == 'asc')
+                    if st.button(
+                        "⬆️ A-Z" if not asc_active else "🔼 A-Z",
+                        key=f"sort_asc_{field}_{project_id}",
+                        help=f"Sort {clean_name} ascending",
+                        use_container_width=True
+                    ):
+                        st.session_state.current_sort = {'field': field, 'direction': 'asc'}
+                        st.rerun()
+                
+                with col_desc:
+                    desc_active = (st.session_state.current_sort['field'] == field and 
+                                  st.session_state.current_sort['direction'] == 'desc')
+                    if st.button(
+                        "⬇️ Z-A" if not desc_active else "🔽 Z-A",
+                        key=f"sort_desc_{field}_{project_id}",
+                        help=f"Sort {clean_name} descending",
+                        use_container_width=True
+                    ):
+                        st.session_state.current_sort = {'field': field, 'direction': 'desc'}
+                        st.rerun()
+        
+        st.markdown('</div>', unsafe_allow_html=True)
     
-    for i, field in enumerate(all_fields):
-        with cols[i % 5]:
-            clean_name = field.replace('ATT ', '') if field.startswith('ATT') else field.title()
-            visibility = st.checkbox(f"Show {clean_name}", value=st.session_state[visibility_key].get(field, True), key=f"vis_{field}_{project_id}")
-            st.session_state[visibility_key][field] = visibility
+    # Bulk visibility controls
+    col1, col2, col3 = st.columns([1, 1, 1])
+    with col1:
+        if st.button("👁️ Show All Fields", use_container_width=True):
+            for field in all_fields:
+                st.session_state[visibility_key][field] = True
+            st.rerun()
     
-    # Apply filters
-    filtered_products = apply_filters(project['products_data'], attribute_filters, {})
+    with col2:
+        if st.button("🙈 Hide All Fields", use_container_width=True):
+            for field in all_fields:
+                st.session_state[visibility_key][field] = False
+            st.rerun()
     
-    st.markdown(f"### Showing {len(filtered_products)} of {len(project['products_data'])} products")
+    with col3:
+        if st.button("🔄 Clear Sort", use_container_width=True):
+            st.session_state.current_sort = {'field': None, 'direction': 'asc'}
+            st.rerun()
     
-    # Display products
-    if filtered_products:
+    # Apply filters and sorting
+    filtered_products = apply_filters(project['products_data'], attribute_filters)
+    sorted_products = sort_products(
+        filtered_products, 
+        st.session_state.current_sort['field'],
+        st.session_state.current_sort['direction']
+    )
+    
+    # Display current sort info
+    if st.session_state.current_sort['field']:
+        sort_field = st.session_state.current_sort['field']
+        sort_dir = st.session_state.current_sort['direction']
+        clean_field = sort_field.replace('ATT ', '') if sort_field.startswith('ATT') else sort_field.title()
+        direction_text = "A→Z" if sort_dir == 'asc' else "Z→A"
+        st.info(f"🔄 Currently sorted by **{clean_field}** ({direction_text})")
+    
+    # Products display
+    st.markdown(f"## 📦 Products ({len(sorted_products)} of {len(project['products_data'])} shown)")
+    
+    if sorted_products:
+        # Display products in responsive grid
         cols_per_row = 4
-        for i in range(0, len(filtered_products), cols_per_row):
+        
+        for i in range(0, len(sorted_products), cols_per_row):
             cols = st.columns(cols_per_row)
-            for j, product in enumerate(filtered_products[i:i+cols_per_row]):
+            for j, product in enumerate(sorted_products[i:i+cols_per_row]):
                 with cols[j]:
-                    display_product_card(product, project)
+                    display_product_card(product, project, st.session_state[visibility_key])
     else:
-        st.info("No products match the current filters.")
+        st.info("🔍 No products match the current filters. Try adjusting your filter settings.")
 
 def main():
-    """Main application"""
+    """Main application router"""
     if st.session_state.page == 'projects':
         show_projects_page()
     elif st.session_state.page == 'create_project':
