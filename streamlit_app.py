@@ -38,43 +38,6 @@ st.markdown(hide_streamlit_style, unsafe_allow_html=True)
 # Custom CSS
 st.markdown("""
 
-
-        /* Fix modal backdrop to cover full screen */
-    div[data-testid="stDialog"] {
-        position: fixed !important;
-        top: 0 !important;
-        left: 0 !important;
-        width: 100vw !important;
-        height: 100vh !important;
-        z-index: 9999 !important;
-    }
-    
-    /* Ensure the backdrop covers everything */
-    div[data-testid="stDialog"]::before {
-        content: "";
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100vw;
-        height: 100vh;
-        background: rgba(0, 0, 0, 0.5);
-        backdrop-filter: blur(2px);
-        z-index: -1;
-    }
-    
-    /* Make sure modal content is centered and properly sized */
-    div[data-testid="stDialog"] > div {
-        position: relative;
-        z-index: 1;
-        margin: 2rem auto;
-        max-width: 80vw;
-        width: 80vw;
-        background: white;
-        border-radius: 10px;
-        box-shadow: 0 10px 30px rgba(0,0,0,0.3);
-    }
-        
-
     .main > div {
         padding-top: 2rem;
     }
@@ -137,6 +100,41 @@ st.markdown("""
         border-radius: 15px;
         margin: 20px 0;
         text-align: center;
+
+
+    # Custom CSS
+st.markdown("""
+<style>
+    .main > div {
+        padding-top: 2rem;
+    }
+    /* ... all your existing CSS stays here ... */
+    
+    /* ADD THIS NEW CSS RIGHT HERE - Modal backdrop fix */
+    div[data-testid="stDialog"] {
+        position: fixed !important;
+        inset: 0 !important;
+        width: 100vw !important;
+        height: 100vh !important;
+        background: rgba(0, 0, 0, 0.5) !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+    }
+    
+    div[data-testid="stDialog"] > div:first-child {
+        width: 80vw !important;
+        max-width: 1200px !important;
+        max-height: 90vh !important;
+        overflow-y: auto !important;
+        background: white !important;
+        border-radius: 10px !important;
+        position: relative !important;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+        
     }
 </style>
 """, unsafe_allow_html=True)
