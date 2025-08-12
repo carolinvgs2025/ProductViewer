@@ -449,7 +449,7 @@ def show_projects_page():
         </div>
         """, unsafe_allow_html=True)
         
-        if st.button("➕ Create New Project", type="primary", use_column_width=True):
+        if st.button("➕ Create New Project", type="primary", use_container_width=True):
             st.session_state.page = 'create_project'
             st.rerun()
     
