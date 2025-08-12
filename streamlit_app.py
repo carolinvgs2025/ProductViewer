@@ -322,33 +322,49 @@ def get_filter_options(products, attributes):
             opts[attr].add(p["attributes"][attr])
     return {k: sorted(list(v)) for k, v in opts.items()}
 
-def optimize_image_for_display(image_data, max_width=600):
-    """Optimize image for faster display while maintaining quality"""
+def optimize_image_for_display(image_data: bytes, display_width: int = DISPLAY_WIDTH, dpr: int = DPR) -> bytes:
+    """
+    Produce a single, crisp display-sized asset with minimal quality loss.
+    - Preserve original format when possible (PNG stays PNG, JPEG stays JPEG).
+    - Only resize when larger than target; otherwise return original bytes.
+    - Use 4:4:4 for JPEG to avoid color smearing on edges/text.
+    """
     try:
         img = Image.open(io.BytesIO(image_data))
-        
-        # Only resize if image is significantly larger than display size
-        if img.width > max_width * 1.5:  # Less aggressive resizing
-            ratio = max_width / img.width
-            new_height = int(img.height * ratio)
-            img = img.resize((max_width, new_height), Image.Resampling.LANCZOS)
-        
-        # Keep as PNG for better quality if it's already PNG
-        if img.format == 'PNG':
-            output = io.BytesIO()
-            img.save(output, format='PNG', optimize=True)
-            return output.getvalue()
-        
-        # Convert to RGB if necessary (for JPEG output)
-        if img.mode in ('RGBA', 'LA', 'P'):
-            img = img.convert('RGB')
-        
-        # Save optimized image to bytes with higher quality
-        output = io.BytesIO()
-        img.save(output, format='JPEG', quality=95, optimize=True)  # Higher quality
-        return output.getvalue()
+        img = ImageOps.exif_transpose(img)  # correct orientation
+
+        # Determine target width for sharpness on HiDPI
+        target_w = int(display_width * dpr)
+
+        # If the source is already <= target width, don't touch it
+        if img.width <= target_w:
+            return image_data
+
+        # Compute new size and resample once
+        ratio = target_w / float(img.width)
+        new_h = max(1, int(round(img.height * ratio)))
+        img = img.resize((target_w, new_h), Image.Resampling.LANCZOS)
+
+        # Save back using original format when sensible
+        orig_format = (img.format or Image.open(io.BytesIO(image_data)).format or "PNG").upper()
+        buf = io.BytesIO()
+
+        if orig_format in ("JPEG", "JPG"):
+            # High quality, no chroma subsampling
+            img = img.convert("RGB")  # ensure no alpha for JPEG
+            img.save(buf, format="JPEG", quality=95, subsampling=0, optimize=True, progressive=True)
+        elif orig_format == "PNG":
+            # Keep lossless; PNG is ideal for UI/text/line art
+            img.save(buf, format="PNG", optimize=True)
+        else:
+            # Fallback: WebP (visually lossless-ish and compact)
+            # If you prefer lossless: img.save(buf, format="WEBP", lossless=True, method=6)
+            img.save(buf, format="WEBP", quality=95, method=6)
+        return buf.getvalue()
     except Exception:
+        # If anything goes wrong, show the original instead of degrading
         return image_data
+
 
 def find_image_for_product(product_id, uploaded_images):
     """Find matching image for a product ID and optimize for display"""
@@ -449,74 +465,46 @@ def sort_products(products, sort_field, sort_direction):
     return sorted(products, key=get_sort_value, reverse=(sort_direction == 'desc'))
 
 def display_product_card(product, project, visibility_settings):
-    """Display a product card with proper styling like the original Flask version"""
-    # Create a styled container that mimics the original design
-    card_style = """
-    <div style="
-        background: white;
-        border: 1px solid #ccc;
-        border-radius: 8px;
-        padding: 15px;
-        margin: 10px 0;
-        box-shadow: 2px 2px 5px rgba(0,0,0,0.1);
-        transition: transform 0.2s ease, box-shadow 0.2s ease;
-        height: 100%;
-    " onmouseover="this.style.transform='translateY(-3px)'; this.style.boxShadow='4px 4px 8px rgba(0,0,0,0.2)'" onmouseout="this.style.transform='translateY(0px)'; this.style.boxShadow='2px 2px 5px rgba(0,0,0,0.1)'">
-    """
-    
-    st.markdown(card_style, unsafe_allow_html=True)
-    
-    # Image section
-    if product["image_data"]:
-        st.image(product["image_data"], width=200, use_container_width=False)
-    else:
-        st.markdown("📷 *No image*")
-    
-    # Product text container
-    st.markdown('<div style="margin-top: 10px;">', unsafe_allow_html=True)
-    
-    # Description
-    if visibility_settings.get('description', True):
-        desc_class = 'style="color: #B22222; font-weight: bold;"' if product["description"] != product["original_description"] else ""
-        st.markdown(f'<span {desc_class}><strong>{product["description"]}</strong></span>', unsafe_allow_html=True)
-    
-    # Price
-    if product["price"] and visibility_settings.get('price', True):
-        price_class = 'style="color: #B22222; font-weight: bold;"' if product["price"] != product["original_price"] else 'style="color: #555; margin-top: 4px; font-size: 0.9rem;"'
-        st.markdown(f'<div {price_class}>Price: ${product["price"]}</div>', unsafe_allow_html=True)
-    
-    # Attributes
-    for attr in project['attributes']:
-        if visibility_settings.get(attr, True):
-            current_val = product["attributes"][attr]
-            original_val = product["original_attributes"][attr]
-            clean_attr = attr.replace('ATT ', '')
-            
-            if current_val != original_val:
-                st.markdown(f'''
-                <div style="margin-bottom: 4px; padding: 2px 0; border-bottom: 1px solid #f1f3f4;">
-                    <small style="color: #B22222; font-weight: bold;">
-                        <strong>{clean_attr}:</strong> {current_val}
-                    </small>
-                </div>
-                ''', unsafe_allow_html=True)
+    """Display an enhanced product card"""
+    # Use Streamlit's native container and columns for proper structure
+    with st.container():
+        # Create a clean bordered container
+        with st.container():
+            # Image section - no additional containers
+            if product["image_data"]:
+                st.image(product["image_data"], width=180, use_container_width=False)
             else:
-                st.markdown(f'''
-                <div style="margin-bottom: 4px; padding: 2px 0; border-bottom: 1px solid #f1f3f4;">
-                    <small>
-                        <strong>{clean_attr}:</strong> {current_val}
-                    </small>
-                </div>
-                ''', unsafe_allow_html=True)
-    
-    st.markdown('</div>', unsafe_allow_html=True)  # Close product text
-    
-    # Edit button
-    if st.button("✏️ Edit Product", key=f"edit_{product['original_index']}_{project['id']}", use_container_width=True):
-        st.session_state.editing_product = product
-        st.rerun()
-    
-    st.markdown('</div>', unsafe_allow_html=True)  # Close card
+                st.markdown("📷 *No Image Available*", unsafe_allow_html=True)
+            
+            # Description
+            if visibility_settings.get('description', True):
+                desc_class = "changed-attribute" if product["description"] != product["original_description"] else ""
+                if desc_class:
+                    st.markdown(f'**{product["description"]}**', unsafe_allow_html=False)
+                else:
+                    st.markdown(f'**{product["description"]}**')
+            
+            # Price
+            if product["price"] and visibility_settings.get('price', True):
+                price_class = "changed-attribute" if product["price"] != product["original_price"] else ""
+                st.markdown(f'<span style="color: #27ae60; font-size: 1.2em; font-weight: 600;">${product["price"]}</span>', unsafe_allow_html=True)
+            
+            # Attributes - clean display
+            for attr in project['attributes']:
+                if visibility_settings.get(attr, True):
+                    current_val = product["attributes"][attr]
+                    original_val = product["original_attributes"][attr]
+                    clean_attr = attr.replace('ATT ', '')
+                    
+                    if current_val != original_val:
+                        st.markdown(f'<small style="color: #e74c3c; font-weight: bold;"><strong>{clean_attr}:</strong> {current_val}</small>', unsafe_allow_html=True)
+                    else:
+                        st.markdown(f'<small><strong>{clean_attr}:</strong> {current_val}</small>', unsafe_allow_html=True)
+            
+            # Edit button
+            if st.button("✏️ Edit Product", key=f"edit_{product['original_index']}_{project['id']}", use_container_width=True):
+                st.session_state.editing_product = product
+                st.rerun()
 
 def show_edit_modal(product, project):
     """Show enhanced edit modal"""
