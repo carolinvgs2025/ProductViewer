@@ -37,16 +37,43 @@ st.markdown(hide_streamlit_style, unsafe_allow_html=True)
 
 # Custom CSS
 st.markdown("""
-<style>
-    div[role="dialog"] {
-    position: fixed !important;
-    top: 0 !important;
-    left: 0 !important;
-    width: 100vw !important;
-    height: 100vh !important;
-    background: rgba(0, 0, 0, 0.5) !important;
-    backdrop-filter: blur(3px) !important;
+
+
+        /* Fix modal backdrop to cover full screen */
+    div[data-testid="stDialog"] {
+        position: fixed !important;
+        top: 0 !important;
+        left: 0 !important;
+        width: 100vw !important;
+        height: 100vh !important;
+        z-index: 9999 !important;
     }
+    
+    /* Ensure the backdrop covers everything */
+    div[data-testid="stDialog"]::before {
+        content: "";
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        background: rgba(0, 0, 0, 0.5);
+        backdrop-filter: blur(2px);
+        z-index: -1;
+    }
+    
+    /* Make sure modal content is centered and properly sized */
+    div[data-testid="stDialog"] > div {
+        position: relative;
+        z-index: 1;
+        margin: 2rem auto;
+        max-width: 80vw;
+        width: 80vw;
+        background: white;
+        border-radius: 10px;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+    }
+        
 
     .main > div {
         padding-top: 2rem;
