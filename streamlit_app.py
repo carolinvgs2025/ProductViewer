@@ -10,6 +10,7 @@ import zipfile
 import json
 from datetime import datetime
 import uuid
+from PIL import Image, ImageOps  # <-- added for image handling
 
 # Set page config
 st.set_page_config(
@@ -101,6 +102,57 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+# --------------------------------------------------------------------
+# Retina-crisp image helpers using <img> + srcset (Option B)
+# --------------------------------------------------------------------
+CARD_IMG_CSS_WIDTH = 200   # CSS width (px) in product cards
+MODAL_IMG_CSS_WIDTH = 300  # CSS width (px) in edit modal
+RETINA_FACTOR = 2          # 2x for HiDPI
+
+@st.cache_data(show_spinner=False)
+def _encode_png_uri(im: Image.Image) -> str:
+    """Return a PNG data URI for a PIL image (lossless, good for UI/text)."""
+    b = BytesIO()
+    im.save(b, format="PNG", optimize=True)
+    return "data:image/png;base64," + base64.b64encode(b.getvalue()).decode("ascii")
+
+def _resize_lanczos(img: Image.Image, target_w: int) -> Image.Image:
+    """High-quality downscale while preserving aspect ratio; no upscale."""
+    if img.width <= target_w:
+        return img.copy()
+    r = target_w / img.width
+    new_w = target_w
+    new_h = max(1, int(round(img.height * r)))
+    return img.resize((new_w, new_h), Image.Resampling.LANCZOS)
+
+@st.cache_data(show_spinner=False)
+def build_img_srcset(image_bytes: bytes, css_width: int, retina_factor: int = RETINA_FACTOR) -> str:
+    """
+    Return an <img> HTML string with srcset (1x/2x) as PNG data URIs.
+    - Corrects EXIF orientation.
+    - Downscales once to css_width and css_width*retina_factor (if larger).
+    - Keeps images sharp on Retina/HiDPI without Streamlit upscaling.
+    """
+    img = Image.open(BytesIO(image_bytes))
+    img = ImageOps.exif_transpose(img)
+
+    one_x = _resize_lanczos(img, css_width)
+    two_x = _resize_lanczos(img, css_width * retina_factor)
+
+    uri_1x = _encode_png_uri(one_x)
+    uri_2x = _encode_png_uri(two_x)
+
+    html = f"""
+    <img
+      src="{uri_1x}"
+      srcset="{uri_1x} 1x, {uri_2x} {retina_factor}x"
+      style="width:{css_width}px;height:auto;display:block;image-rendering:auto;"
+      alt=""
+    />
+    """
+    return html
+# --------------------------------------------------------------------
+
 # Initialize session state for projects
 if 'projects' not in st.session_state:
     st.session_state.projects = {}
@@ -152,7 +204,7 @@ def find_image_for_product(product_id, uploaded_images):
     for filename, file_data in uploaded_images.items():
         name_part = os.path.splitext(filename)[0].lower()
         if name_part == str(product_id).lower():
-            # Return the raw bytes without any processing to maintain quality
+            # Return raw bytes (we handle display separately)
             return file_data
     return None
 
@@ -236,14 +288,10 @@ def display_product_card(product, col_index, project):
     with st.container():
         st.markdown('<div class="product-card">', unsafe_allow_html=True)
         
-        # Image
+        # IMAGE (srcset-based; replaces st.image)
         if product["image_data"]:
-            st.image(
-                product["image_data"], 
-                width=200, 
-                use_column_width=False,
-                output_format="PNG"
-            )
+            html = build_img_srcset(product["image_data"], css_width=CARD_IMG_CSS_WIDTH)
+            st.markdown(html, unsafe_allow_html=True)
         else:
             st.write("📷 No image")
         
@@ -278,14 +326,10 @@ def show_edit_modal(product, project):
     col1, col2 = st.columns([1, 2])
     
     with col1:
-        # Image
+        # IMAGE (srcset-based; replaces st.image)
         if product["image_data"]:
-            st.image(
-                product["image_data"], 
-                width=300, 
-                use_column_width=False,
-                output_format="PNG"
-            )
+            html = build_img_srcset(product["image_data"], css_width=MODAL_IMG_CSS_WIDTH)
+            st.markdown(html, unsafe_allow_html=True)
         else:
             st.write("📷 No image")
     
@@ -663,3 +707,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
