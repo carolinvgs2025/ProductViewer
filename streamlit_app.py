@@ -271,7 +271,7 @@ def apply_filters(products, attribute_filters, distribution_filters):
     
     return filtered
 
-def clickable_card(product, project, visible_attributes, key):
+def clickable_card(product, project, visible_attributes):
     """Creates a clickable card component that returns the product index when clicked."""
     
     # Image HTML
@@ -309,7 +309,7 @@ def clickable_card(product, project, visible_attributes, key):
     """
     
     # The component call returns the value set by JS (the index)
-    clicked_index = components.html(card_html, height=480, key=key)
+    clicked_index = components.html(card_html, height=480)
     return clicked_index
 
 
@@ -546,11 +546,12 @@ def show_grid_page():
         product_to_edit = st.session_state.editing_product
         with st.dialog(f"Edit: {product_to_edit['description']}"):
             show_edit_modal(product_to_edit, project)
+        return # This is the key fix: stop rendering the rest of the page
     
     # Header with project info and navigation
     col1, col2 = st.columns([3, 1])
     with col1:
-        st.title(f"� {project['name']}")
+        st.title(f"📊 {project['name']}")
         if project['description']:
             st.write(project['description'])
     
@@ -692,9 +693,7 @@ def show_grid_page():
             cols = st.columns(cols_per_row)
             for j, product in enumerate(sorted_products[i:i+cols_per_row]):
                 with cols[j]:
-                    # Using a more robust key for the component
-                    card_key = f"card_{project_id}_{product['original_index']}"
-                    clicked_index = clickable_card(product, project, view_options['visible_attributes'], key=card_key)
+                    clicked_index = clickable_card(product, project, view_options['visible_attributes'])
                     if clicked_index is not None:
                         # Find the product that was clicked
                         clicked_product = next((p for p in project['products_data'] if p['original_index'] == clicked_index), None)
