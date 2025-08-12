@@ -241,7 +241,7 @@ def display_product_card(product, col_index, project):
             st.image(
                 product["image_data"], 
                 width=200, 
-                use_container_width=False,
+                use_column_width=False,
                 output_format="PNG"
             )
         else:
@@ -283,7 +283,7 @@ def show_edit_modal(product, project):
             st.image(
                 product["image_data"], 
                 width=300, 
-                use_container_width=False,
+                use_column_width=False,
                 output_format="PNG"
             )
         else:
@@ -405,7 +405,7 @@ def show_projects_page():
         </div>
         """, unsafe_allow_html=True)
         
-        if st.button("➕ Create New Project", type="primary", use_container_width=True):
+        if st.button("➕ Create New Project", type="primary", use_column_width=True):
             st.session_state.page = 'create_project'
             st.rerun()
     
