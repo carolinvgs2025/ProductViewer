@@ -38,6 +38,16 @@ st.markdown(hide_streamlit_style, unsafe_allow_html=True)
 # Custom CSS
 st.markdown("""
 <style>
+    div[role="dialog"] {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    background: rgba(0, 0, 0, 0.5) !important;
+    backdrop-filter: blur(3px) !important;
+    }
+
     .main > div {
         padding-top: 2rem;
     }
