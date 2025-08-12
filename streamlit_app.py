@@ -10,7 +10,7 @@ import zipfile
 import json
 from datetime import datetime
 import uuid
-from PIL import Image, ImageOps  # <-- added for image handling
+from PIL import Image, ImageOps
 
 # Set page config
 st.set_page_config(
@@ -51,12 +51,14 @@ st.markdown("""
         margin: 5px;
         background-color: white;
         box-shadow: 2px 2px 5px rgba(0,0,0,0.1);
+        height: 100%; /* Ensure cards in a row are same height */
     }
     .product-card img {
         image-rendering: -webkit-optimize-contrast;
         image-rendering: crisp-edges;
         max-width: 100%;
         height: auto;
+        margin-bottom: 10px;
     }
     .changed-attribute {
         color: #B22222;
@@ -103,21 +105,21 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # --------------------------------------------------------------------
-# Retina-crisp image helpers using <img> + srcset (Option B)
+# Retina-crisp image helpers using <img> + srcset
 # --------------------------------------------------------------------
-CARD_IMG_CSS_WIDTH = 200   # CSS width (px) in product cards
-MODAL_IMG_CSS_WIDTH = 300  # CSS width (px) in edit modal
-RETINA_FACTOR = 2          # 2x for HiDPI
+CARD_IMG_CSS_WIDTH = 200
+MODAL_IMG_CSS_WIDTH = 300
+RETINA_FACTOR = 2
 
 @st.cache_data(show_spinner=False)
 def _encode_png_uri(im: Image.Image) -> str:
-    """Return a PNG data URI for a PIL image (lossless, good for UI/text)."""
+    """Return a PNG data URI for a PIL image."""
     b = BytesIO()
     im.save(b, format="PNG", optimize=True)
     return "data:image/png;base64," + base64.b64encode(b.getvalue()).decode("ascii")
 
 def _resize_lanczos(img: Image.Image, target_w: int) -> Image.Image:
-    """High-quality downscale while preserving aspect ratio; no upscale."""
+    """High-quality downscale while preserving aspect ratio."""
     if img.width <= target_w:
         return img.copy()
     r = target_w / img.width
@@ -127,27 +129,19 @@ def _resize_lanczos(img: Image.Image, target_w: int) -> Image.Image:
 
 @st.cache_data(show_spinner=False)
 def build_img_srcset(image_bytes: bytes, css_width: int, retina_factor: int = RETINA_FACTOR) -> str:
-    """
-    Return an <img> HTML string with srcset (1x/2x) as PNG data URIs.
-    - Corrects EXIF orientation.
-    - Downscales once to css_width and css_width*retina_factor (if larger).
-    - Keeps images sharp on Retina/HiDPI without Streamlit upscaling.
-    """
+    """Return an <img> HTML string with srcset (1x/2x) as PNG data URIs."""
     img = Image.open(BytesIO(image_bytes))
     img = ImageOps.exif_transpose(img)
-
     one_x = _resize_lanczos(img, css_width)
     two_x = _resize_lanczos(img, css_width * retina_factor)
-
     uri_1x = _encode_png_uri(one_x)
     uri_2x = _encode_png_uri(two_x)
-
     html = f"""
     <img
       src="{uri_1x}"
       srcset="{uri_1x} 1x, {uri_2x} {retina_factor}x"
       style="width:{css_width}px;height:auto;display:block;image-rendering:auto;"
-      alt=""
+      alt="Product Image"
     />
     """
     return html
@@ -159,7 +153,7 @@ if 'projects' not in st.session_state:
 if 'current_project' not in st.session_state:
     st.session_state.current_project = None
 if 'page' not in st.session_state:
-    st.session_state.page = 'projects'  # 'projects', 'create_project', 'grid'
+    st.session_state.page = 'projects'
 
 # Project data structure
 def create_new_project(name, description=""):
@@ -204,7 +198,6 @@ def find_image_for_product(product_id, uploaded_images):
     for filename, file_data in uploaded_images.items():
         name_part = os.path.splitext(filename)[0].lower()
         if name_part == str(product_id).lower():
-            # Return raw bytes (we handle display separately)
             return file_data
     return None
 
@@ -224,11 +217,15 @@ def load_and_parse_excel(uploaded_file, uploaded_images):
     for idx, row in df.iterrows():
         product_id = str(row.iloc[0]).strip()
         description = str(row.iloc[1]).strip()
-        price_str = f"{row[price_col]:.2f}" if price_col and not pd.isna(row[price_col]) else ""
         
-        # Find matching image
+        # Handle price conversion safely
+        try:
+            price_val = float(row[price_col]) if price_col and not pd.isna(row[price_col]) else 0.0
+            price_str = f"{price_val:.2f}"
+        except (ValueError, TypeError):
+            price_str = "0.00"
+
         image_data = find_image_for_product(product_id, uploaded_images)
-        
         attr_data = {a: str(row[a]).strip() for a in attributes}
         dist_data = {d: "X" in str(row[d]).upper() for d in distributions}
         
@@ -266,10 +263,9 @@ def apply_filters(products, attribute_filters, distribution_filters):
         if show and distribution_filters and 'All' not in distribution_filters:
             dist_match = False
             for dist in distribution_filters:
-                safe_dist = sanitize_attr(dist)
                 # Check against the original distribution key
-                for orig_dist in products[0]["distribution"].keys():
-                    if sanitize_attr(orig_dist) == dist or orig_dist.replace('DIST ', '') == dist:
+                for orig_dist in product["distribution"].keys():
+                    if orig_dist.replace('DIST ', '') == dist:
                         if product["distribution"].get(orig_dist, False):
                             dist_match = True
                             break
@@ -283,34 +279,36 @@ def apply_filters(products, attribute_filters, distribution_filters):
     
     return filtered
 
-def display_product_card(product, col_index, project):
-    """Display a single product card"""
+def display_product_card(product, col_index, project, visible_attributes):
+    """Display a single product card with visibility controls."""
     with st.container():
         st.markdown('<div class="product-card">', unsafe_allow_html=True)
         
-        # IMAGE (srcset-based; replaces st.image)
+        # IMAGE
         if product["image_data"]:
             html = build_img_srcset(product["image_data"], css_width=CARD_IMG_CSS_WIDTH)
             st.markdown(html, unsafe_allow_html=True)
         else:
-            st.write("📷 No image")
+            st.markdown(f'<div style="height: {CARD_IMG_CSS_WIDTH}px; display: flex; align-items: center; justify-content: center; background-color: #f0f2f6; border-radius: 8px;">📷 No image</div>', unsafe_allow_html=True)
         
         # Description
-        desc_class = "changed-attribute" if product["description"] != product["original_description"] else ""
-        st.markdown(f'<p class="{desc_class}"><strong>{product["description"]}</strong></p>', unsafe_allow_html=True)
+        if "Description" in visible_attributes:
+            desc_class = "changed-attribute" if product["description"] != product["original_description"] else ""
+            st.markdown(f'<p class="{desc_class}"><strong>{product["description"]}</strong></p>', unsafe_allow_html=True)
         
         # Price
-        if product["price"]:
+        if "Price" in visible_attributes and product["price"]:
             price_class = "changed-attribute" if product["price"] != product["original_price"] else ""
             st.markdown(f'<p class="{price_class}">Price: ${product["price"]}</p>', unsafe_allow_html=True)
         
         # Attributes
         for attr in project['attributes']:
-            current_val = product["attributes"][attr]
-            original_val = product["original_attributes"][attr]
-            attr_class = "changed-attribute" if current_val != original_val else ""
-            clean_attr = attr.replace('ATT ', '')
-            st.markdown(f'<small class="{attr_class}"><strong>{clean_attr}:</strong> {current_val}</small>', unsafe_allow_html=True)
+            if attr in visible_attributes:
+                current_val = product["attributes"][attr]
+                original_val = product["original_attributes"][attr]
+                attr_class = "changed-attribute" if current_val != original_val else ""
+                clean_attr = attr.replace('ATT ', '')
+                st.markdown(f'<small class="{attr_class}"><strong>{clean_attr}:</strong> {current_val}</small>', unsafe_allow_html=True)
         
         # Edit button
         if st.button(f"Edit Product", key=f"edit_{product['original_index']}_{project['id']}"):
@@ -326,7 +324,6 @@ def show_edit_modal(product, project):
     col1, col2 = st.columns([1, 2])
     
     with col1:
-        # IMAGE (srcset-based; replaces st.image)
         if product["image_data"]:
             html = build_img_srcset(product["image_data"], css_width=MODAL_IMG_CSS_WIDTH)
             st.markdown(html, unsafe_allow_html=True)
@@ -334,13 +331,9 @@ def show_edit_modal(product, project):
             st.write("📷 No image")
     
     with col2:
-        # Description
         new_description = st.text_input("Description", value=product["description"])
-        
-        # Price
         new_price = st.text_input("Price", value=product["price"])
         
-        # Attributes
         st.subheader("Attributes")
         new_attributes = {}
         for attr in project['attributes']:
@@ -362,29 +355,24 @@ def show_edit_modal(product, project):
             else:
                 new_attributes[attr] = selected_option
         
-        # Save/Cancel buttons
         col_save, col_cancel = st.columns(2)
         
         with col_save:
             if st.button("Save Changes", type="primary"):
-                # Update product data
                 idx = product["original_index"]
                 if idx not in project['pending_changes']:
                     project['pending_changes'][idx] = {}
                 
-                # Update description
-                if new_description != product["original_description"]:
+                if new_description != product["description"]:
                     project['pending_changes'][idx]["description"] = new_description
                     product["description"] = new_description
                 
-                # Update price
-                if new_price != product["original_price"]:
+                if new_price != product["price"]:
                     project['pending_changes'][idx]["price"] = new_price
                     product["price"] = new_price
                 
-                # Update attributes
                 for attr, new_val in new_attributes.items():
-                    if new_val != product["original_attributes"][attr]:
+                    if new_val != product["attributes"][attr]:
                         project['pending_changes'][idx][attr] = new_val
                         product["attributes"][attr] = new_val
                 
@@ -403,33 +391,19 @@ def create_download_excel(project):
     if not project['products_data']:
         return None
     
-    # Recreate the original DataFrame structure
     data = []
     for product in project['products_data']:
         row = [product["product_id"], product["description"]]
-        
-        # Add attribute columns
         for attr in project['attributes']:
             row.append(product["attributes"][attr])
-        
-        # Add distribution columns
         for dist in project['distributions']:
             row.append("X" if product["distribution"][dist] else "")
-        
-        # Add price
-        row.append(float(product["price"]) if product["price"] else 0)
-        
+        row.append(float(product["price"]) if product["price"] else 0.0)
         data.append(row)
     
-    # Create column headers
-    headers = ["Product ID", "Description"]
-    headers.extend(project['attributes'])
-    headers.extend(project['distributions'])
-    headers.append("Price")
-    
+    headers = ["Product ID", "Description"] + project['attributes'] + project['distributions'] + ["Price"]
     df = pd.DataFrame(data, columns=headers)
     
-    # Convert to Excel bytes
     output = BytesIO()
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
         df.to_excel(writer, index=False, sheet_name='Products')
@@ -440,7 +414,6 @@ def show_projects_page():
     """Display the main projects page"""
     st.title("📁 Product Grid Projects")
     
-    # New Project Section
     with st.container():
         st.markdown("""
         <div class="new-project-section">
@@ -453,11 +426,9 @@ def show_projects_page():
             st.session_state.page = 'create_project'
             st.rerun()
     
-    # Existing Projects
     if st.session_state.projects:
         st.header("📋 Your Projects")
         
-        # Sort projects by last modified (most recent first)
         sorted_projects = sorted(
             st.session_state.projects.items(),
             key=lambda x: x[1]['last_modified'],
@@ -475,7 +446,6 @@ def show_projects_page():
                     if project['description']:
                         st.write(project['description'])
                     
-                    # Project stats
                     num_products = len(project['products_data'])
                     num_attributes = len(project['attributes'])
                     pending_changes = len(project['pending_changes'])
@@ -507,12 +477,10 @@ def show_create_project_page():
     """Display the create new project page"""
     st.title("🆕 Create New Project")
     
-    # Back button
     if st.button("← Back to Projects"):
         st.session_state.page = 'projects'
         st.rerun()
     
-    # Project details
     project_name = st.text_input("Project Name", placeholder="e.g., Q1 2024 Product Launch")
     project_description = st.text_area("Description (optional)", placeholder="Brief description of this project...")
     
@@ -520,7 +488,6 @@ def show_create_project_page():
         st.warning("Please enter a project name to continue.")
         return
     
-    # File uploads
     col1, col2 = st.columns(2)
     
     with col1:
@@ -531,7 +498,6 @@ def show_create_project_page():
             help="Excel file with Product ID, Description, ATT columns, DIST columns, and Price",
             key="create_excel"
         )
-        
         if uploaded_excel:
             st.success(f"✅ {uploaded_excel.name}")
     
@@ -544,28 +510,17 @@ def show_create_project_page():
             help="Upload images named with Product IDs (e.g., '123.jpg' for product ID '123')",
             key="create_images"
         )
-        
         if uploaded_images:
             st.success(f"✅ {len(uploaded_images)} images uploaded")
     
-    # Create project button
     if st.button("🚀 Create Project", type="primary", disabled=not uploaded_excel):
         if uploaded_excel:
-            # Process uploaded images with quality preservation
-            image_dict = {}
-            if uploaded_images:
-                for img_file in uploaded_images:
-                    # Store raw bytes to maintain original quality
-                    image_dict[img_file.name] = img_file.getvalue()
-            
-            # Parse Excel
+            image_dict = {img_file.name: img_file.getvalue() for img_file in uploaded_images} if uploaded_images else {}
             products, attributes, distributions, filter_options = load_and_parse_excel(uploaded_excel, image_dict)
             
-            # Create new project
             project_id = create_new_project(project_name, project_description)
             project = st.session_state.projects[project_id]
             
-            # Store data in project
             project['products_data'] = products
             project['attributes'] = attributes
             project['distributions'] = distributions
@@ -576,7 +531,6 @@ def show_create_project_page():
             st.success(f"✅ Project '{project_name}' created with {len(products)} products!")
             st.balloons()
             
-            # Redirect to the grid
             st.session_state.current_project = project_id
             st.session_state.page = 'grid'
             st.rerun()
@@ -590,9 +544,10 @@ def show_grid_page():
         return
     
     project = st.session_state.projects[st.session_state.current_project]
+    project_id = project['id']
     
     # Header with project info and navigation
-    col1, col2, col3 = st.columns([2, 1, 1])
+    col1, col2 = st.columns([3, 1])
     with col1:
         st.title(f"📊 {project['name']}")
         if project['description']:
@@ -603,20 +558,63 @@ def show_grid_page():
             st.session_state.page = 'projects'
             st.rerun()
     
-    with col3:
-        # Project actions dropdown could go here
-        pass
-    
     # Show edit modal if editing
     if 'editing_product' in st.session_state:
         show_edit_modal(st.session_state.editing_product, project)
         return
     
+    # --- NEW: VIEW AND SORT CONTROL BAND ---
+    with st.container(border=True):
+        # Initialize view options in session state if they don't exist for this project
+        if f'view_options_{project_id}' not in st.session_state:
+            st.session_state[f'view_options_{project_id}'] = {
+                'visible_attributes': ['Description', 'Price'] + project['attributes'],
+                'sort_by': 'product_id',
+                'sort_ascending': True
+            }
+        view_options = st.session_state[f'view_options_{project_id}']
+        
+        # Get all possible fields to show/sort by
+        all_fields = ['Description', 'Price'] + project['attributes']
+
+        st.subheader("View & Sort Options")
+        c1, c2 = st.columns(2)
+
+        with c1:
+            # --- Visibility Control ---
+            visible_attributes = st.multiselect(
+                "Show/Hide Attributes on Cards:",
+                options=all_fields,
+                default=view_options['visible_attributes'],
+                key=f"visibility_multiselect_{project_id}"
+            )
+            view_options['visible_attributes'] = visible_attributes
+
+        with c2:
+            # --- Sorting Control ---
+            sort_cols = st.columns([2, 1])
+            selected_sort_by = sort_cols[0].selectbox(
+                "Sort Products By:",
+                options=['product_id'] + all_fields,
+                index=(['product_id'] + all_fields).index(view_options['sort_by']) if view_options['sort_by'] in (['product_id'] + all_fields) else 0,
+                key=f"sort_by_{project_id}"
+            )
+            view_options['sort_by'] = selected_sort_by
+
+            sort_direction = sort_cols[1].radio(
+                "Direction:", 
+                ["🔼 Asc", "🔽 Desc"], 
+                index=0 if view_options['sort_ascending'] else 1,
+                key=f"sort_dir_{project_id}",
+                horizontal=True
+            )
+            view_options['sort_ascending'] = (sort_direction == "🔼 Asc")
+
+    st.markdown("---")
+
     # Sidebar filters
     with st.sidebar:
         st.header("🔍 Filters")
-        
-        # Attribute filters
         attribute_filters = {}
         for attr in project['attributes']:
             clean_attr = attr.replace('ATT ', '')
@@ -629,7 +627,6 @@ def show_grid_page():
             )
             attribute_filters[attr] = selected
         
-        # Distribution filters
         if project['distributions']:
             st.subheader("Distribution")
             dist_options = ['All'] + [d.replace('DIST ', '') for d in project['distributions']]
@@ -644,14 +641,12 @@ def show_grid_page():
     
     # Main content area - Action buttons
     col1, col2, col3, col4 = st.columns(4)
-    
     with col1:
         if project['pending_changes']:
             if st.button("🔄 Apply Changes", type="primary"):
                 st.success("✅ Changes applied!")
                 project['pending_changes'] = {}
                 update_project_timestamp(project['id'])
-    
     with col2:
         excel_data = create_download_excel(project)
         if excel_data:
@@ -661,11 +656,9 @@ def show_grid_page():
                 file_name=f"{project['name']}_updated.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
-    
     with col3:
         if st.button("🔄 Reset Changes"):
             project['pending_changes'] = {}
-            # Reset all products to original values
             for product in project['products_data']:
                 product['description'] = product['original_description']
                 product['price'] = product['original_price']
@@ -679,25 +672,46 @@ def show_grid_page():
         attribute_filters,
         distribution_filters
     )
+
+    # --- NEW: Apply Sorting ---
+    sort_by = view_options['sort_by']
+    is_ascending = view_options['sort_ascending']
+
+    def get_sort_key(product):
+        if sort_by == 'product_id':
+            # Try to convert to number for numeric sorting if possible
+            try:
+                return int(product['product_id'])
+            except ValueError:
+                return product['product_id']
+        elif sort_by == 'Description':
+            return product['description'].lower()
+        elif sort_by == 'Price':
+            try:
+                return float(product['price'])
+            except (ValueError, TypeError):
+                return 0.0 # Default value for non-numeric prices
+        else: # It's an attribute
+            return product['attributes'].get(sort_by, '').lower()
+
+    sorted_products = sorted(filtered_products, key=get_sort_key, reverse=not is_ascending)
     
-    st.markdown(f"### Showing {len(filtered_products)} of {len(project['products_data'])} products")
+    st.markdown(f"### Showing {len(sorted_products)} of {len(project['products_data'])} products")
     
     # Display products in grid
-    if filtered_products:
-        # Create columns for grid layout
+    if sorted_products:
         cols_per_row = 4
-        for i in range(0, len(filtered_products), cols_per_row):
+        for i in range(0, len(sorted_products), cols_per_row):
             cols = st.columns(cols_per_row)
-            for j, product in enumerate(filtered_products[i:i+cols_per_row]):
+            for j, product in enumerate(sorted_products[i:i+cols_per_row]):
                 with cols[j]:
-                    display_product_card(product, j, project)
+                    # Pass the visible attributes to the card display function
+                    display_product_card(product, j, project, view_options['visible_attributes'])
     else:
         st.info("No products match the current filters.")
 
 def main():
     """Main application logic"""
-    
-    # Route to appropriate page
     if st.session_state.page == 'projects':
         show_projects_page()
     elif st.session_state.page == 'create_project':
