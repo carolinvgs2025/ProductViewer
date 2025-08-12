@@ -1,4 +1,10 @@
-import streamlit as st
+# Apply filtersdef sanitize_attr(attr):# Initialize session state for projects
+if 'projects' not in st.session_state:
+    st.session_state.projects = {}
+if 'current_project' not in st.session_state:
+    st.session_state.current_project = None
+if 'page' not in st.session_state:
+    st.session_state.page = 'projects'  # 'projects', 'create_project', 'grid'import streamlit as st
 import pandas as pd
 import os
 import tempfile
@@ -102,13 +108,9 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# Initialize session state for projects
-if 'projects' not in st.session_state:
-    st.session_state.projects = {}
-if 'current_project' not in st.session_state:
-    st.session_state.current_project = None
-if 'page' not in st.session_state:
-    st.session_state.page = 'projects'  # 'projects', 'create_project', 'grid'
+# Initialize session state for visibility controls
+if 'attribute_visibility' not in st.session_state:
+    st.session_state.attribute_visibility = {}
 
 # Project data structure
 def create_new_project(name, description=""):
@@ -136,7 +138,20 @@ def update_project_timestamp(project_id):
     if project_id in st.session_state.projects:
         st.session_state.projects[project_id]['last_modified'] = datetime.now().isoformat()
 
-def sanitize_attr(attr):
+def sort_products_by_attribute(products, attr, direction):
+    """Sort products by a specific attribute"""
+    if attr == 'description':
+        return sorted(products, 
+                     key=lambda x: x['description'].lower(), 
+                     reverse=(direction == 'desc'))
+    elif attr == 'price':
+        return sorted(products, 
+                     key=lambda x: float(x['price']) if x['price'] else 0, 
+                     reverse=(direction == 'desc'))
+    else:
+        return sorted(products, 
+                     key=lambda x: x['attributes'].get(attr, '').lower(), 
+                     reverse=(direction == 'desc'))
     """Sanitize attribute names for use as keys"""
     return attr.replace(' ', '_').replace('/', '_').replace('(', '').replace(')', '').replace('+', 'plus').replace(':', '')
 
@@ -148,26 +163,32 @@ def get_filter_options(products, attributes):
             opts[attr].add(p["attributes"][attr])
     return {k: sorted(v) for k, v in opts.items()}
 
-def optimize_image_for_display(image_data, max_width=400):
+def optimize_image_for_display(image_data, max_width=600):
     """Optimize image for faster display while maintaining quality"""
     try:
         # Open image from bytes
         img = Image.open(io.BytesIO(image_data))
         
         # Only resize if image is significantly larger than display size
-        if img.width > max_width * 2:
+        if img.width > max_width * 1.5:  # Less aggressive resizing
             # Calculate new height maintaining aspect ratio
             ratio = max_width / img.width
             new_height = int(img.height * ratio)
             img = img.resize((max_width, new_height), Image.Resampling.LANCZOS)
         
+        # Keep as PNG for better quality if it's already PNG
+        if img.format == 'PNG':
+            output = io.BytesIO()
+            img.save(output, format='PNG', optimize=True)
+            return output.getvalue()
+        
         # Convert to RGB if necessary (for JPEG output)
         if img.mode in ('RGBA', 'LA', 'P'):
             img = img.convert('RGB')
         
-        # Save optimized image to bytes
+        # Save optimized image to bytes with higher quality
         output = io.BytesIO()
-        img.save(output, format='JPEG', quality=85, optimize=True)
+        img.save(output, format='JPEG', quality=95, optimize=True)  # Higher quality
         return output.getvalue()
     except Exception:
         # Return original if optimization fails
@@ -259,36 +280,47 @@ def apply_filters(products, attribute_filters, distribution_filters):
 
 def display_product_card(product, col_index, project):
     """Display a single product card"""
+    project_id = project['id']
+    
+    # Get visibility settings for this project
+    visibility_key = f"visibility_{project_id}"
+    if visibility_key not in st.session_state:
+        # Default all attributes to visible
+        st.session_state[visibility_key] = {attr: True for attr in project['attributes']}
+        st.session_state[visibility_key]['description'] = True
+        st.session_state[visibility_key]['price'] = True
+    
     with st.container():
         st.markdown('<div class="product-card">', unsafe_allow_html=True)
         
-        # Image (with faster JPEG rendering)
+        # Image (high quality)
         if product["image_data"]:
             st.image(
                 product["image_data"], 
                 width=200, 
-                use_container_width=False,
-                output_format="JPEG"  # JPEG renders faster than PNG
+                use_container_width=False
             )
         else:
-            st.write("📷 No image")
+            st.markdown("📷 *No image*")
         
-        # Description
-        desc_class = "changed-attribute" if product["description"] != product["original_description"] else ""
-        st.markdown(f'<p class="{desc_class}"><strong>{product["description"]}</strong></p>', unsafe_allow_html=True)
+        # Description (always show)
+        if st.session_state[visibility_key].get('description', True):
+            desc_class = "changed-attribute" if product["description"] != product["original_description"] else ""
+            st.markdown(f'<p class="{desc_class}"><strong>{product["description"]}</strong></p>', unsafe_allow_html=True)
         
-        # Price
-        if product["price"]:
+        # Price (show if visible)
+        if product["price"] and st.session_state[visibility_key].get('price', True):
             price_class = "changed-attribute" if product["price"] != product["original_price"] else ""
             st.markdown(f'<p class="{price_class}">Price: ${product["price"]}</p>', unsafe_allow_html=True)
         
-        # Attributes
+        # Attributes (show only if visible)
         for attr in project['attributes']:
-            current_val = product["attributes"][attr]
-            original_val = product["original_attributes"][attr]
-            attr_class = "changed-attribute" if current_val != original_val else ""
-            clean_attr = attr.replace('ATT ', '')
-            st.markdown(f'<small class="{attr_class}"><strong>{clean_attr}:</strong> {current_val}</small>', unsafe_allow_html=True)
+            if st.session_state[visibility_key].get(attr, True):
+                current_val = product["attributes"][attr]
+                original_val = product["original_attributes"][attr]
+                attr_class = "changed-attribute" if current_val != original_val else ""
+                clean_attr = attr.replace('ATT ', '')
+                st.markdown(f'<small class="{attr_class}"><strong>{clean_attr}:</strong> {current_val}</small>', unsafe_allow_html=True)
         
         # Edit button
         if st.button(f"Edit Product", key=f"edit_{product['original_index']}_{project['id']}"):
@@ -304,16 +336,15 @@ def show_edit_modal(product, project):
     col1, col2 = st.columns([1, 2])
     
     with col1:
-        # Image
+        # Image (high quality)
         if product["image_data"]:
             st.image(
                 product["image_data"], 
                 width=300, 
-                use_container_width=False,
-                output_format="JPEG"  # JPEG is faster to render than PNG
+                use_container_width=False
             )
         else:
-            st.write("📷 No image")
+            st.markdown("📷 *No image*")
     
     with col2:
         # Description
@@ -655,7 +686,83 @@ def show_grid_page():
             update_project_timestamp(project['id'])
             st.rerun()
     
-    # Apply filters
+    # View By Controls (like original Flask app)
+    st.subheader("🎛️ View By...")
+    
+    project_id = project['id']
+    visibility_key = f"visibility_{project_id}"
+    sort_key = f"sort_{project_id}"
+    
+    # Initialize visibility and sort state
+    if visibility_key not in st.session_state:
+        st.session_state[visibility_key] = {attr: True for attr in project['attributes']}
+        st.session_state[visibility_key]['description'] = True
+        st.session_state[visibility_key]['price'] = True
+    
+    if sort_key not in st.session_state:
+        st.session_state[sort_key] = {'field': None, 'direction': 'asc'}
+    
+    # Create view controls
+    view_cols = st.columns(5)  # 5 controls per row
+    col_idx = 0
+    
+    # Controls for each attribute
+    all_fields = project['attributes'] + ['description', 'price']
+    
+    for field in all_fields:
+        with view_cols[col_idx % 5]:
+            clean_name = field.replace('ATT ', '') if field.startswith('ATT') else field.title()
+            
+            # Visibility checkbox
+            visibility = st.checkbox(
+                f"Show {clean_name}", 
+                value=st.session_state[visibility_key].get(field, True),
+                key=f"vis_{field}_{project_id}"
+            )
+            st.session_state[visibility_key][field] = visibility
+            
+            # Sort buttons (▲ ▼)
+            col_sort1, col_sort2 = st.columns(2)
+            with col_sort1:
+                if st.button("▲", key=f"sort_asc_{field}_{project_id}", help=f"Sort {clean_name} A→Z"):
+                    st.session_state[sort_key] = {'field': field, 'direction': 'asc'}
+                    st.rerun()
+            with col_sort2:
+                if st.button("▼", key=f"sort_desc_{field}_{project_id}", help=f"Sort {clean_name} Z→A"):
+                    st.session_state[sort_key] = {'field': field, 'direction': 'desc'}
+                    st.rerun()
+        
+        col_idx += 1
+        if col_idx % 5 == 0:  # Start new row every 5 columns
+            view_cols = st.columns(5)
+    
+    # Show/Hide All buttons
+    st.write("")
+    col_all1, col_all2 = st.columns([1, 1])
+    with col_all1:
+        if st.button("✅ Show All", key=f"show_all_{project_id}"):
+            for field in all_fields:
+                st.session_state[visibility_key][field] = True
+            st.rerun()
+    with col_all2:
+        if st.button("❌ Hide All", key=f"hide_all_{project_id}"):
+            for field in all_fields:
+                st.session_state[visibility_key][field] = False
+            st.rerun()
+    
+    # Apply sorting if set
+    if st.session_state[sort_key]['field']:
+        filtered_products = sort_products_by_attribute(
+            filtered_products, 
+            st.session_state[sort_key]['field'], 
+            st.session_state[sort_key]['direction']
+        )
+        current_sort = st.session_state[sort_key]
+        clean_field = current_sort['field'].replace('ATT ', '') if current_sort['field'].startswith('ATT') else current_sort['field'].title()
+        direction_text = "A→Z" if current_sort['direction'] == 'asc' else "Z→A"
+        st.info(f"🔄 Sorted by **{clean_field}** ({direction_text})")
+    
+    st.markdown("---")
     filtered_products = apply_filters(
         project['products_data'],
         attribute_filters,
