@@ -346,14 +346,6 @@ def show_edit_modal(product, project):
     @st.dialog(f"Edit Product: {product['product_id']}")
     def edit_product_dialog():
         # Make the modal wider by using custom CSS
-        st.markdown("""
-        <style>
-        div[data-testid="stDialog"] {
-            width: 80vw !important;
-            max-width: 1200px !important;
-        }
-        </style>
-        """, unsafe_allow_html=True)
         
         # Image at the top, larger
         if product["image_data"]:
