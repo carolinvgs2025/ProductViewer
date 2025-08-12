@@ -45,8 +45,7 @@ st.markdown("""
     .stSelectbox > div > div > select {
         background-color: white;
     }
-    /* New CSS for the clickable card */
-    .clickable-card {
+    .product-card {
         border: 1px solid #ddd;
         border-radius: 8px;
         padding: 15px;
@@ -54,16 +53,11 @@ st.markdown("""
         background-color: white;
         box-shadow: 2px 2px 5px rgba(0,0,0,0.1);
         height: 100%;
-        cursor: pointer;
-        transition: transform 0.2s ease, box-shadow 0.2s ease;
         display: flex;
         flex-direction: column;
+        font-family: sans-serif; /* Ensures consistent font */
     }
-    .clickable-card:hover {
-        transform: translateY(-2px);
-        box-shadow: 4px 4px 12px rgba(0,0,0,0.15);
-    }
-    .clickable-card img {
+    .product-card img {
         max-width: 100%;
         height: auto;
         margin-bottom: 10px;
@@ -271,46 +265,43 @@ def apply_filters(products, attribute_filters, distribution_filters):
     
     return filtered
 
-def clickable_card(product, project, visible_attributes):
-    """Creates a clickable card component that returns the product index when clicked."""
-    
-    # Image HTML
-    if product["image_data"]:
-        image_html = build_img_srcset(product["image_data"], css_width=CARD_IMG_CSS_WIDTH)
-    else:
-        image_html = f'<div style="height: {CARD_IMG_CSS_WIDTH}px; display: flex; align-items: center; justify-content: center; background-color: #f0f2f6; border-radius: 8px;">📷 No image</div>'
+def display_product_card(product, project, visible_attributes):
+    """Renders a product card with an edit button."""
+    with st.container():
+        st.markdown('<div class="product-card">', unsafe_allow_html=True)
+        
+        # Image
+        if product["image_data"]:
+            image_html = build_img_srcset(product["image_data"], css_width=CARD_IMG_CSS_WIDTH)
+            st.markdown(image_html, unsafe_allow_html=True)
+        else:
+            st.markdown(f'<div style="height: {CARD_IMG_CSS_WIDTH}px; display: flex; align-items: center; justify-content: center; background-color: #f0f2f6; border-radius: 8px;">📷 No image</div>', unsafe_allow_html=True)
 
-    # Content HTML
-    content_html = ""
-    if "Description" in visible_attributes:
-        desc_class = "changed-attribute" if product["description"] != product["original_description"] else ""
-        content_html += f'<p class="{desc_class}"><strong>{product["description"]}</strong></p>'
-    
-    if "Price" in visible_attributes and product["price"]:
-        price_class = "changed-attribute" if product["price"] != product["original_price"] else ""
-        content_html += f'<p class="{price_class}">Price: ${product["price"]}</p>'
+        # Content
+        st.markdown('<div class="card-content">', unsafe_allow_html=True)
+        if "Description" in visible_attributes:
+            desc_class = "changed-attribute" if product["description"] != product["original_description"] else ""
+            st.markdown(f'<p class="{desc_class}"><strong>{product["description"]}</strong></p>', unsafe_allow_html=True)
+        
+        if "Price" in visible_attributes and product["price"]:
+            price_class = "changed-attribute" if product["price"] != product["original_price"] else ""
+            st.markdown(f'<p class="{price_class}">Price: ${product["price"]}</p>', unsafe_allow_html=True)
 
-    for attr in project['attributes']:
-        if attr in visible_attributes:
-            current_val = product["attributes"][attr]
-            original_val = product["original_attributes"][attr]
-            attr_class = "changed-attribute" if current_val != original_val else ""
-            clean_attr = attr.replace('ATT ', '')
-            content_html += f'<small class="{attr_class}"><strong>{clean_attr}:</strong> {current_val}</small><br>'
+        for attr in project['attributes']:
+            if attr in visible_attributes:
+                current_val = product["attributes"][attr]
+                original_val = product["original_attributes"][attr]
+                attr_class = "changed-attribute" if current_val != original_val else ""
+                clean_attr = attr.replace('ATT ', '')
+                st.markdown(f'<small class="{attr_class}"><strong>{clean_attr}:</strong> {current_val}</small>', unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
 
-    # Component HTML
-    card_html = f"""
-    <div class="clickable-card" onclick="Streamlit.setComponentValue({product['original_index']})">
-        {image_html}
-        <div class="card-content">
-            {content_html}
-        </div>
-    </div>
-    """
-    
-    # The component call returns the value set by JS (the index)
-    clicked_index = components.html(card_html, height=480)
-    return clicked_index
+        # Edit Button
+        if st.button("Edit", key=f"edit_{product['original_index']}_{project['id']}"):
+            st.session_state.editing_product = product
+            st.rerun()
+
+        st.markdown('</div>', unsafe_allow_html=True)
 
 
 def show_edit_modal(product, project):
@@ -417,7 +408,7 @@ def show_projects_page():
         </div>
         """, unsafe_allow_html=True)
         
-        if st.button("➕ Create New Project", type="primary", use_container_width=True):
+        if st.button("➕ Create New Project", type="primary", use_column_width=True):
             st.session_state.page = 'create_project'
             st.rerun()
     
@@ -693,13 +684,7 @@ def show_grid_page():
             cols = st.columns(cols_per_row)
             for j, product in enumerate(sorted_products[i:i+cols_per_row]):
                 with cols[j]:
-                    clicked_index = clickable_card(product, project, view_options['visible_attributes'])
-                    if clicked_index is not None:
-                        # Find the product that was clicked
-                        clicked_product = next((p for p in project['products_data'] if p['original_index'] == clicked_index), None)
-                        if clicked_product:
-                            st.session_state.editing_product = clicked_product
-                            st.rerun()
+                    display_product_card(product, project, view_options['visible_attributes'])
     else:
         st.info("No products match the current filters.")
 
@@ -714,3 +699,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
