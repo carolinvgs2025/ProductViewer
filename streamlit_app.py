@@ -318,73 +318,76 @@ def display_product_card(product, col_index, project, visible_attributes):
         st.markdown('</div>', unsafe_allow_html=True)
 
 def show_edit_modal(product, project):
-    """Show edit modal for a product"""
-    st.subheader(f"Edit Product: {product['product_id']}")
+    """Show edit modal for a product using Streamlit's modal"""
     
-    col1, col2 = st.columns([1, 2])
-    
-    with col1:
-        if product["image_data"]:
-            html = build_img_srcset(product["image_data"], css_width=MODAL_IMG_CSS_WIDTH)
-            st.markdown(html, unsafe_allow_html=True)
-        else:
-            st.write("📷 No image")
-    
-    with col2:
-        new_description = st.text_input("Description", value=product["description"])
-        new_price = st.text_input("Price", value=product["price"])
+    @st.dialog(f"Edit Product: {product['product_id']}")
+    def edit_product_dialog():
+        col1, col2 = st.columns([1, 2])
         
-        st.subheader("Attributes")
-        new_attributes = {}
-        for attr in project['attributes']:
-            current_val = product["attributes"][attr]
-            options = project['filter_options'].get(attr, [current_val])
-            if current_val not in options:
-                options.append(current_val)
-            
-            clean_attr = attr.replace('ATT ', '')
-            selected_option = st.selectbox(
-                f"{clean_attr}",
-                options + ["[Custom Value]"],
-                index=options.index(current_val) if current_val in options else 0,
-                key=f"attr_{attr}_{product['original_index']}_{project['id']}"
-            )
-            
-            if selected_option == "[Custom Value]":
-                new_attributes[attr] = st.text_input(f"Custom {clean_attr}", value=current_val, key=f"custom_{attr}_{product['original_index']}_{project['id']}")
+        with col1:
+            if product["image_data"]:
+                html = build_img_srcset(product["image_data"], css_width=MODAL_IMG_CSS_WIDTH)
+                st.markdown(html, unsafe_allow_html=True)
             else:
-                new_attributes[attr] = selected_option
+                st.write("📷 No image")
         
-        col_save, col_cancel = st.columns(2)
-        
-        with col_save:
-            if st.button("Save Changes", type="primary"):
-                idx = product["original_index"]
-                if idx not in project['pending_changes']:
-                    project['pending_changes'][idx] = {}
+        with col2:
+            new_description = st.text_input("Description", value=product["description"])
+            new_price = st.text_input("Price", value=product["price"])
+            
+            st.subheader("Attributes")
+            new_attributes = {}
+            for attr in project['attributes']:
+                current_val = product["attributes"][attr]
+                options = project['filter_options'].get(attr, [current_val])
+                if current_val not in options:
+                    options.append(current_val)
                 
-                if new_description != product["description"]:
-                    project['pending_changes'][idx]["description"] = new_description
-                    product["description"] = new_description
+                clean_attr = attr.replace('ATT ', '')
+                selected_option = st.selectbox(
+                    f"{clean_attr}",
+                    options + ["[Custom Value]"],
+                    index=options.index(current_val) if current_val in options else 0,
+                    key=f"modal_attr_{attr}_{product['original_index']}"
+                )
                 
-                if new_price != product["price"]:
-                    project['pending_changes'][idx]["price"] = new_price
-                    product["price"] = new_price
-                
-                for attr, new_val in new_attributes.items():
-                    if new_val != product["attributes"][attr]:
-                        project['pending_changes'][idx][attr] = new_val
-                        product["attributes"][attr] = new_val
-                
-                update_project_timestamp(project['id'])
-                st.success("Changes saved! Click 'Apply Changes' to make them permanent.")
-                del st.session_state.editing_product
-                st.rerun()
-        
-        with col_cancel:
-            if st.button("Cancel"):
-                del st.session_state.editing_product
-                st.rerun()
+                if selected_option == "[Custom Value]":
+                    new_attributes[attr] = st.text_input(f"Custom {clean_attr}", value=current_val, key=f"modal_custom_{attr}_{product['original_index']}")
+                else:
+                    new_attributes[attr] = selected_option
+            
+            col_save, col_cancel = st.columns(2)
+            
+            with col_save:
+                if st.button("Save Changes", type="primary"):
+                    idx = product["original_index"]
+                    if idx not in project['pending_changes']:
+                        project['pending_changes'][idx] = {}
+                    
+                    if new_description != product["original_description"]:
+                        project['pending_changes'][idx]["description"] = new_description
+                        product["description"] = new_description
+                    
+                    if new_price != product["original_price"]:
+                        project['pending_changes'][idx]["price"] = new_price
+                        product["price"] = new_price
+                    
+                    for attr, new_val in new_attributes.items():
+                        if new_val != product["original_attributes"][attr]:
+                            project['pending_changes'][idx][attr] = new_val
+                            product["attributes"][attr] = new_val
+                    
+                    update_project_timestamp(project['id'])
+                    st.success("Changes saved!")
+                    del st.session_state.editing_product
+                    st.rerun()
+            
+            with col_cancel:
+                if st.button("Cancel"):
+                    del st.session_state.editing_product
+                    st.rerun()
+    
+    edit_product_dialog()
 
 def create_download_excel(project):
     """Create Excel file with current changes for download"""
@@ -561,7 +564,6 @@ def show_grid_page():
     # Show edit modal if editing
     if 'editing_product' in st.session_state:
         show_edit_modal(st.session_state.editing_product, project)
-        return
     
     # --- VIEW AND SORT CONTROL BAND ---
     with st.container(border=True):
