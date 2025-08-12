@@ -11,6 +11,7 @@ import json
 from datetime import datetime
 import uuid
 from PIL import Image, ImageOps
+import streamlit.components.v1 as components
 
 # Set page config
 st.set_page_config(
@@ -44,31 +45,36 @@ st.markdown("""
     .stSelectbox > div > div > select {
         background-color: white;
     }
-    .product-card {
+    /* New CSS for the clickable card */
+    .clickable-card {
         border: 1px solid #ddd;
         border-radius: 8px;
-        padding: 10px;
+        padding: 15px;
         margin: 5px;
         background-color: white;
         box-shadow: 2px 2px 5px rgba(0,0,0,0.1);
-        height: 100%; /* Ensure cards in a row are same height */
+        height: 100%;
+        cursor: pointer;
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+        display: flex;
+        flex-direction: column;
     }
-    .product-card img {
-        image-rendering: -webkit-optimize-contrast;
-        image-rendering: crisp-edges;
+    .clickable-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 4px 4px 12px rgba(0,0,0,0.15);
+    }
+    .clickable-card img {
         max-width: 100%;
         height: auto;
         margin-bottom: 10px;
+        border-radius: 4px;
+    }
+    .card-content {
+        flex-grow: 1;
     }
     .changed-attribute {
         color: #B22222;
         font-weight: bold;
-    }
-    .filter-section {
-        background-color: #f0f2f6;
-        padding: 1rem;
-        border-radius: 10px;
-        margin-bottom: 1rem;
     }
     .project-card {
         border: 1px solid #ddd;
@@ -82,16 +88,6 @@ st.markdown("""
     .project-card:hover {
         transform: translateY(-2px);
         box-shadow: 4px 4px 12px rgba(0,0,0,0.15);
-    }
-    .project-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 10px;
-    }
-    .project-stats {
-        color: #666;
-        font-size: 0.9em;
     }
     .new-project-section {
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -218,7 +214,6 @@ def load_and_parse_excel(uploaded_file, uploaded_images):
         product_id = str(row.iloc[0]).strip()
         description = str(row.iloc[1]).strip()
         
-        # Handle price conversion safely
         try:
             price_val = float(row[price_col]) if price_col and not pd.isna(row[price_col]) else 0.0
             price_str = f"{price_val:.2f}"
@@ -251,7 +246,6 @@ def apply_filters(products, attribute_filters, distribution_filters):
     for product in products:
         show = True
         
-        # Apply attribute filters
         for attr, selected_values in attribute_filters.items():
             if selected_values and 'All' not in selected_values:
                 product_value = product["attributes"].get(attr, "")
@@ -259,11 +253,9 @@ def apply_filters(products, attribute_filters, distribution_filters):
                     show = False
                     break
         
-        # Apply distribution filters
         if show and distribution_filters and 'All' not in distribution_filters:
             dist_match = False
             for dist in distribution_filters:
-                # Check against the original distribution key
                 for orig_dist in product["distribution"].keys():
                     if orig_dist.replace('DIST ', '') == dist:
                         if product["distribution"].get(orig_dist, False):
@@ -279,47 +271,50 @@ def apply_filters(products, attribute_filters, distribution_filters):
     
     return filtered
 
-def display_product_card(product, col_index, project, visible_attributes):
-    """Display a single product card with visibility controls."""
-    with st.container():
-        st.markdown('<div class="product-card">', unsafe_allow_html=True)
-        
-        # IMAGE
-        if product["image_data"]:
-            html = build_img_srcset(product["image_data"], css_width=CARD_IMG_CSS_WIDTH)
-            st.markdown(html, unsafe_allow_html=True)
-        else:
-            st.markdown(f'<div style="height: {CARD_IMG_CSS_WIDTH}px; display: flex; align-items: center; justify-content: center; background-color: #f0f2f6; border-radius: 8px;">📷 No image</div>', unsafe_allow_html=True)
-        
-        # Description
-        if "Description" in visible_attributes:
-            desc_class = "changed-attribute" if product["description"] != product["original_description"] else ""
-            st.markdown(f'<p class="{desc_class}"><strong>{product["description"]}</strong></p>', unsafe_allow_html=True)
-        
-        # Price
-        if "Price" in visible_attributes and product["price"]:
-            price_class = "changed-attribute" if product["price"] != product["original_price"] else ""
-            st.markdown(f'<p class="{price_class}">Price: ${product["price"]}</p>', unsafe_allow_html=True)
-        
-        # Attributes
-        for attr in project['attributes']:
-            if attr in visible_attributes:
-                current_val = product["attributes"][attr]
-                original_val = product["original_attributes"][attr]
-                attr_class = "changed-attribute" if current_val != original_val else ""
-                clean_attr = attr.replace('ATT ', '')
-                st.markdown(f'<small class="{attr_class}"><strong>{clean_attr}:</strong> {current_val}</small>', unsafe_allow_html=True)
-        
-        # Edit button
-        if st.button(f"Edit Product", key=f"edit_{product['original_index']}_{project['id']}"):
-            st.session_state.editing_product = product
-            st.rerun()
-        
-        st.markdown('</div>', unsafe_allow_html=True)
+def clickable_card(product, project, visible_attributes, key):
+    """Creates a clickable card component that returns the product index when clicked."""
+    
+    # Image HTML
+    if product["image_data"]:
+        image_html = build_img_srcset(product["image_data"], css_width=CARD_IMG_CSS_WIDTH)
+    else:
+        image_html = f'<div style="height: {CARD_IMG_CSS_WIDTH}px; display: flex; align-items: center; justify-content: center; background-color: #f0f2f6; border-radius: 8px;">📷 No image</div>'
+
+    # Content HTML
+    content_html = ""
+    if "Description" in visible_attributes:
+        desc_class = "changed-attribute" if product["description"] != product["original_description"] else ""
+        content_html += f'<p class="{desc_class}"><strong>{product["description"]}</strong></p>'
+    
+    if "Price" in visible_attributes and product["price"]:
+        price_class = "changed-attribute" if product["price"] != product["original_price"] else ""
+        content_html += f'<p class="{price_class}">Price: ${product["price"]}</p>'
+
+    for attr in project['attributes']:
+        if attr in visible_attributes:
+            current_val = product["attributes"][attr]
+            original_val = product["original_attributes"][attr]
+            attr_class = "changed-attribute" if current_val != original_val else ""
+            clean_attr = attr.replace('ATT ', '')
+            content_html += f'<small class="{attr_class}"><strong>{clean_attr}:</strong> {current_val}</small><br>'
+
+    # Component HTML
+    card_html = f"""
+    <div class="clickable-card" onclick="Streamlit.setComponentValue({product['original_index']})">
+        {image_html}
+        <div class="card-content">
+            {content_html}
+        </div>
+    </div>
+    """
+    
+    # The component call returns the value set by JS (the index)
+    clicked_index = components.html(card_html, height=450, key=key)
+    return clicked_index
+
 
 def show_edit_modal(product, project):
-    """Show edit modal for a product"""
-    st.subheader(f"Edit Product: {product['product_id']}")
+    """Show edit modal for a product. This function is now called inside a st.dialog."""
     
     col1, col2 = st.columns([1, 2])
     
@@ -377,13 +372,13 @@ def show_edit_modal(product, project):
                         product["attributes"][attr] = new_val
                 
                 update_project_timestamp(project['id'])
-                st.success("Changes saved! Click 'Apply Changes' to make them permanent.")
-                del st.session_state.editing_product
+                st.success("Changes saved!")
+                del st.session_state.editing_product # This will close the dialog on rerun
                 st.rerun()
         
         with col_cancel:
             if st.button("Cancel"):
-                del st.session_state.editing_product
+                del st.session_state.editing_product # This will close the dialog on rerun
                 st.rerun()
 
 def create_download_excel(project):
@@ -545,6 +540,12 @@ def show_grid_page():
     
     project = st.session_state.projects[st.session_state.current_project]
     project_id = project['id']
+
+    # Handle opening the edit dialog
+    if 'editing_product' in st.session_state:
+        product_to_edit = st.session_state.editing_product
+        with st.dialog(f"Edit: {product_to_edit['description']}"):
+            show_edit_modal(product_to_edit, project)
     
     # Header with project info and navigation
     col1, col2 = st.columns([3, 1])
@@ -558,14 +559,8 @@ def show_grid_page():
             st.session_state.page = 'projects'
             st.rerun()
     
-    # Show edit modal if editing
-    if 'editing_product' in st.session_state:
-        show_edit_modal(st.session_state.editing_product, project)
-        return
-    
     # --- VIEW AND SORT CONTROL BAND ---
     with st.container(border=True):
-        # Initialize view options in session state if they don't exist for this project
         if f'view_options_{project_id}' not in st.session_state:
             st.session_state[f'view_options_{project_id}'] = {
                 'visible_attributes': ['Description', 'Price'] + project['attributes'],
@@ -574,31 +569,25 @@ def show_grid_page():
             }
         view_options = st.session_state[f'view_options_{project_id}']
         
-        # Get all possible fields to show/sort by
         all_fields = ['Description', 'Price'] + project['attributes']
         
-        # Function to format attribute names for display
         def format_attribute_name(attr_name):
-            if isinstance(attr_name, str):
-                return attr_name.replace('ATT ', '')
-            return attr_name
+            return attr_name.replace('ATT ', '') if isinstance(attr_name, str) else attr_name
 
         st.subheader("View & Sort Options")
         c1, c2 = st.columns(2)
 
         with c1:
-            # --- Visibility Control ---
             visible_attributes = st.multiselect(
                 "Show/Hide Attributes on Cards:",
                 options=all_fields,
                 default=view_options['visible_attributes'],
                 key=f"visibility_multiselect_{project_id}",
-                format_func=format_attribute_name # Use the formatter here
+                format_func=format_attribute_name
             )
             view_options['visible_attributes'] = visible_attributes
 
         with c2:
-            # --- Sorting Control ---
             sort_options = ['product_id'] + all_fields
             sort_cols = st.columns([2, 1])
             selected_sort_by = sort_cols[0].selectbox(
@@ -606,7 +595,7 @@ def show_grid_page():
                 options=sort_options,
                 index=sort_options.index(view_options['sort_by']) if view_options['sort_by'] in sort_options else 0,
                 key=f"sort_by_{project_id}",
-                format_func=format_attribute_name # Use the formatter here
+                format_func=format_attribute_name
             )
             view_options['sort_by'] = selected_sort_by
 
@@ -675,32 +664,21 @@ def show_grid_page():
             update_project_timestamp(project['id'])
             st.rerun()
     
-    # Apply filters
-    filtered_products = apply_filters(
-        project['products_data'],
-        attribute_filters,
-        distribution_filters
-    )
-
-    # --- Apply Sorting ---
+    # Apply filters and sorting
+    filtered_products = apply_filters(project['products_data'], attribute_filters, distribution_filters)
     sort_by = view_options['sort_by']
     is_ascending = view_options['sort_ascending']
 
     def get_sort_key(product):
         if sort_by == 'product_id':
-            # Try to convert to number for numeric sorting if possible
-            try:
-                return int(product['product_id'])
-            except ValueError:
-                return product['product_id']
+            try: return int(product['product_id'])
+            except ValueError: return product['product_id']
         elif sort_by == 'Description':
             return product['description'].lower()
         elif sort_by == 'Price':
-            try:
-                return float(product['price'])
-            except (ValueError, TypeError):
-                return 0.0 # Default value for non-numeric prices
-        else: # It's an attribute
+            try: return float(product['price'])
+            except (ValueError, TypeError): return 0.0
+        else:
             return product['attributes'].get(sort_by, '').lower()
 
     sorted_products = sorted(filtered_products, key=get_sort_key, reverse=not is_ascending)
@@ -714,8 +692,13 @@ def show_grid_page():
             cols = st.columns(cols_per_row)
             for j, product in enumerate(sorted_products[i:i+cols_per_row]):
                 with cols[j]:
-                    # Pass the visible attributes to the card display function
-                    display_product_card(product, j, project, view_options['visible_attributes'])
+                    clicked_index = clickable_card(product, project, view_options['visible_attributes'], key=f"card_{product['original_index']}")
+                    if clicked_index is not None:
+                        # Find the product that was clicked
+                        clicked_product = next((p for p in project['products_data'] if p['original_index'] == clicked_index), None)
+                        if clicked_product:
+                            st.session_state.editing_product = clicked_product
+                            st.rerun()
     else:
         st.info("No products match the current filters.")
 
