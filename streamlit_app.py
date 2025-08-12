@@ -408,7 +408,7 @@ def show_projects_page():
         </div>
         """, unsafe_allow_html=True)
         
-        if st.button("➕ Create New Project", type="primary", use_column_width=True):
+        if st.button("➕ Create New Project", type="primary", use_container_width=True):
             st.session_state.page = 'create_project'
             st.rerun()
     
@@ -535,7 +535,7 @@ def show_grid_page():
     # Handle opening the edit dialog
     if 'editing_product' in st.session_state:
         product_to_edit = st.session_state.editing_product
-        with st.dialog(f"Edit: {product_to_edit['description']}"):
+        with st.experimental_dialog(f"Edit: {product_to_edit['description']}"):
             show_edit_modal(product_to_edit, project)
         return # This is the key fix: stop rendering the rest of the page
     
@@ -699,4 +699,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
