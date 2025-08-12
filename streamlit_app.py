@@ -7,6 +7,8 @@ import json
 from datetime import datetime
 import uuid
 from collections import defaultdict
+DISPLAY_WIDTH = 180  
+DPR = 2              
 
 # Set page config
 st.set_page_config(
