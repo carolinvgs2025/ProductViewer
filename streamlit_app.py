@@ -7,8 +7,6 @@ import json
 from datetime import datetime
 import uuid
 from collections import defaultdict
-DISPLAY_WIDTH = 180  
-DPR = 2              
 
 # Set page config
 st.set_page_config(
@@ -324,49 +322,33 @@ def get_filter_options(products, attributes):
             opts[attr].add(p["attributes"][attr])
     return {k: sorted(list(v)) for k, v in opts.items()}
 
-def optimize_image_for_display(image_data: bytes, display_width: int = DISPLAY_WIDTH, dpr: int = DPR) -> bytes:
-    """
-    Produce a single, crisp display-sized asset with minimal quality loss.
-    - Preserve original format when possible (PNG stays PNG, JPEG stays JPEG).
-    - Only resize when larger than target; otherwise return original bytes.
-    - Use 4:4:4 for JPEG to avoid color smearing on edges/text.
-    """
+def optimize_image_for_display(image_data, max_width=600):
+    """Optimize image for faster display while maintaining quality"""
     try:
         img = Image.open(io.BytesIO(image_data))
-        img = ImageOps.exif_transpose(img)  # correct orientation
-
-        # Determine target width for sharpness on HiDPI
-        target_w = int(display_width * dpr)
-
-        # If the source is already <= target width, don't touch it
-        if img.width <= target_w:
-            return image_data
-
-        # Compute new size and resample once
-        ratio = target_w / float(img.width)
-        new_h = max(1, int(round(img.height * ratio)))
-        img = img.resize((target_w, new_h), Image.Resampling.LANCZOS)
-
-        # Save back using original format when sensible
-        orig_format = (img.format or Image.open(io.BytesIO(image_data)).format or "PNG").upper()
-        buf = io.BytesIO()
-
-        if orig_format in ("JPEG", "JPG"):
-            # High quality, no chroma subsampling
-            img = img.convert("RGB")  # ensure no alpha for JPEG
-            img.save(buf, format="JPEG", quality=95, subsampling=0, optimize=True, progressive=True)
-        elif orig_format == "PNG":
-            # Keep lossless; PNG is ideal for UI/text/line art
-            img.save(buf, format="PNG", optimize=True)
-        else:
-            # Fallback: WebP (visually lossless-ish and compact)
-            # If you prefer lossless: img.save(buf, format="WEBP", lossless=True, method=6)
-            img.save(buf, format="WEBP", quality=95, method=6)
-        return buf.getvalue()
+        
+        # Only resize if image is significantly larger than display size
+        if img.width > max_width * 1.5:  # Less aggressive resizing
+            ratio = max_width / img.width
+            new_height = int(img.height * ratio)
+            img = img.resize((max_width, new_height), Image.Resampling.LANCZOS)
+        
+        # Keep as PNG for better quality if it's already PNG
+        if img.format == 'PNG':
+            output = io.BytesIO()
+            img.save(output, format='PNG', optimize=True)
+            return output.getvalue()
+        
+        # Convert to RGB if necessary (for JPEG output)
+        if img.mode in ('RGBA', 'LA', 'P'):
+            img = img.convert('RGB')
+        
+        # Save optimized image to bytes with higher quality
+        output = io.BytesIO()
+        img.save(output, format='JPEG', quality=95, optimize=True)  # Higher quality
+        return output.getvalue()
     except Exception:
-        # If anything goes wrong, show the original instead of degrading
         return image_data
-
 
 def find_image_for_product(product_id, uploaded_images):
     """Find matching image for a product ID and optimize for display"""
