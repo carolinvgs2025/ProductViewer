@@ -449,44 +449,74 @@ def sort_products(products, sort_field, sort_direction):
     return sorted(products, key=get_sort_value, reverse=(sort_direction == 'desc'))
 
 def display_product_card(product, project, visibility_settings):
-    """Display an enhanced product card"""
-    # Use Streamlit's native container and columns for proper structure
-    with st.container():
-        # Create a clean bordered container
-        with st.container():
-            # Image section - no additional containers
-            if product["image_data"]:
-                st.image(product["image_data"], width=180, use_container_width=False)
+    """Display a product card with proper styling like the original Flask version"""
+    # Create a styled container that mimics the original design
+    card_style = """
+    <div style="
+        background: white;
+        border: 1px solid #ccc;
+        border-radius: 8px;
+        padding: 15px;
+        margin: 10px 0;
+        box-shadow: 2px 2px 5px rgba(0,0,0,0.1);
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+        height: 100%;
+    " onmouseover="this.style.transform='translateY(-3px)'; this.style.boxShadow='4px 4px 8px rgba(0,0,0,0.2)'" onmouseout="this.style.transform='translateY(0px)'; this.style.boxShadow='2px 2px 5px rgba(0,0,0,0.1)'">
+    """
+    
+    st.markdown(card_style, unsafe_allow_html=True)
+    
+    # Image section
+    if product["image_data"]:
+        st.image(product["image_data"], width=200, use_container_width=False)
+    else:
+        st.markdown("📷 *No image*")
+    
+    # Product text container
+    st.markdown('<div style="margin-top: 10px;">', unsafe_allow_html=True)
+    
+    # Description
+    if visibility_settings.get('description', True):
+        desc_class = 'style="color: #B22222; font-weight: bold;"' if product["description"] != product["original_description"] else ""
+        st.markdown(f'<span {desc_class}><strong>{product["description"]}</strong></span>', unsafe_allow_html=True)
+    
+    # Price
+    if product["price"] and visibility_settings.get('price', True):
+        price_class = 'style="color: #B22222; font-weight: bold;"' if product["price"] != product["original_price"] else 'style="color: #555; margin-top: 4px; font-size: 0.9rem;"'
+        st.markdown(f'<div {price_class}>Price: ${product["price"]}</div>', unsafe_allow_html=True)
+    
+    # Attributes
+    for attr in project['attributes']:
+        if visibility_settings.get(attr, True):
+            current_val = product["attributes"][attr]
+            original_val = product["original_attributes"][attr]
+            clean_attr = attr.replace('ATT ', '')
+            
+            if current_val != original_val:
+                st.markdown(f'''
+                <div style="margin-bottom: 4px; padding: 2px 0; border-bottom: 1px solid #f1f3f4;">
+                    <small style="color: #B22222; font-weight: bold;">
+                        <strong>{clean_attr}:</strong> {current_val}
+                    </small>
+                </div>
+                ''', unsafe_allow_html=True)
             else:
-                st.markdown("📷 *No Image Available*", unsafe_allow_html=True)
-            
-            # Description
-            if visibility_settings.get('description', True):
-                desc_class = "changed-attribute" if product["description"] != product["original_description"] else ""
-                if desc_class:
-                    st.markdown(f'**{product["description"]}**', unsafe_allow_html=False)
-                else:
-                    st.markdown(f'**{product["description"]}**')
-            
-            # Price
-            if product["price"] and visibility_settings.get('price', True):
-                price_class = "changed-attribute" if product["price"] != product["original_price"] else ""
-                st.markdown(f'<span style="color: #27ae60; font-size: 1.2em; font-weight: 600;">${product["price"]}</span>', unsafe_allow_html=True)
-            
-            # Attributes - clean display
-            for attr in project['attributes']:
-                if visibility_settings.get(attr, True):
-                    current_val = product["attributes"][attr]
-                    original_val = product["original_attributes"][attr]
-                    clean_attr = attr.replace('ATT ', '')
-                    
-                    if current_val != original_val:
-                        st.markdown(f'<small style="color: #e74c3c; font-weight: bold;"><strong>{clean_attr}:</strong> {current_val}</small>', unsafe_allow_html=True)
-                    else:
-                        st.markdown(f'<small><strong>{clean_attr}:</strong> {current_val}</small>', unsafe_allow_html=True)
-            
-            # Edit button
-            st.button("✏️ Edit Product", key=f"edit_{product['original_index']}_{project['id']}", use_container_width=True, on_click=lambda: setattr(st.session_state, 'editing_product', product))
+                st.markdown(f'''
+                <div style="margin-bottom: 4px; padding: 2px 0; border-bottom: 1px solid #f1f3f4;">
+                    <small>
+                        <strong>{clean_attr}:</strong> {current_val}
+                    </small>
+                </div>
+                ''', unsafe_allow_html=True)
+    
+    st.markdown('</div>', unsafe_allow_html=True)  # Close product text
+    
+    # Edit button
+    if st.button("✏️ Edit Product", key=f"edit_{product['original_index']}_{project['id']}", use_container_width=True):
+        st.session_state.editing_product = product
+        st.rerun()
+    
+    st.markdown('</div>', unsafe_allow_html=True)  # Close card
 
 def show_edit_modal(product, project):
     """Show enhanced edit modal"""
