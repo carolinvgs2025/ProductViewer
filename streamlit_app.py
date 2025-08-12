@@ -36,8 +36,9 @@ div[data-testid="stStatusWidget"] {visibility: hidden;}
 st.markdown(hide_streamlit_style, unsafe_allow_html=True)
 
 # Custom CSS
+# Custom CSS
 st.markdown("""
-
+<style>
     .main > div {
         padding-top: 2rem;
     }
@@ -51,7 +52,7 @@ st.markdown("""
         margin: 5px;
         background-color: white;
         box-shadow: 2px 2px 5px rgba(0,0,0,0.1);
-        height: 100%; /* Ensure cards in a row are same height */
+        height: 100%;
     }
     .product-card img {
         image-rendering: -webkit-optimize-contrast;
@@ -100,17 +101,9 @@ st.markdown("""
         border-radius: 15px;
         margin: 20px 0;
         text-align: center;
-
-
-    # Custom CSS
-st.markdown("""
-<style>
-    .main > div {
-        padding-top: 2rem;
     }
-    /* ... all your existing CSS stays here ... */
     
-    /* ADD THIS NEW CSS RIGHT HERE - Modal backdrop fix */
+    /* Modal backdrop fix */
     div[data-testid="stDialog"] {
         position: fixed !important;
         inset: 0 !important;
@@ -130,11 +123,6 @@ st.markdown("""
         background: white !important;
         border-radius: 10px !important;
         position: relative !important;
-    }
-    </style>
-    """, unsafe_allow_html=True)
-
-        
     }
 </style>
 """, unsafe_allow_html=True)
