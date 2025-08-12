@@ -38,6 +38,25 @@ st.markdown(hide_streamlit_style, unsafe_allow_html=True)
 # Custom CSS
 st.markdown("""
 <style>
+        /* Remove container outlines and borders */
+    .element-container {
+        border: none !important;
+        outline: none !important;
+        background: transparent !important;
+    }
+    
+    /* Target specific containers that might be causing the rectangle */
+    div[data-testid="column"] > div {
+        border: none !important;
+        outline: none !important;
+        background: transparent !important;
+    }
+    
+    /* Remove any default container styling */
+    .stContainer {
+        border: none !important;
+        box-shadow: none !important;
+    }
     .main > div {
         padding-top: 2rem;
     }
