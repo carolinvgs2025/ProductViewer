@@ -12,7 +12,7 @@ from datetime import datetime
 import uuid
 from PIL import Image, ImageOps
 
-from firestore_manager import integrate_with_streamlit_app, get_or_create_user_id, load_projects_from_cloud
+from firestore_manager import integrate_with_streamlit_app, get_or_create_user_id, load_projects_from_clou, save_current_project_to_cloud
 
 # Initialize Firebase
 firestore_manager = integrate_with_streamlit_app()
@@ -736,7 +736,9 @@ def show_grid_page():
             auto_save_project(project['id'])
             st.rerun()
     with col5:
-        save_current_project_to_cloud()
+        if st.button("☁️ Save to Cloud"):
+            save_current_project_to_cloud()
+
     
     # Apply filters
     filtered_products = apply_filters(
