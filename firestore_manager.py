@@ -169,38 +169,91 @@ class ProjectFirestoreManager:
         finally:
             self._saving_in_progress = False
 
-    def load_project(self, project_id: str) -> Optional[Dict]:
-        """Load a project (and fetch images back into memory)."""
+def _blob_path_from_url(url: str, bucket_name: str) -> Optional[str]:
+    """
+    Try to convert a public URL or gs:// URL into a blob path.
+    Returns None if we can't safely infer it.
+    """
+    if not isinstance(url, str):
+        return None
+    url = url.strip()
+
+    # gs://bucket/path/to/file
+    if url.startswith("gs://"):
+        parts = url[len("gs://"):].split("/", 1)
+        if len(parts) == 2 and parts[0] == bucket_name:
+            return parts[1]
+
+    # https://storage.googleapis.com/bucket/path/to/file
+    if "storage.googleapis.com" in url:
         try:
-            doc = self.db.collection(self.collection_name).document(project_id).get()
-            if not doc.exists:
-                return None
-            data = doc.to_dict() or {}
-
-            # Rehydrate images using blob paths (source of truth)
-            uploaded_images: Dict[str, bytes] = {}
-            img_map = data.get("image_mappings", {})
-            for product_id, meta in img_map.items():
-                blob_path = meta.get("blob_path")
-                if blob_path:
-                    img_bytes = self._download_blob_bytes(blob_path)
-                    if img_bytes:
-                        # prime both uploaded_images and per-product image_data
-                        uploaded_images[f"{product_id}.png"] = img_bytes
-
-            # Put image_data back into products_data (for rendering)
-            pid_to_image = {pid: uploaded_images.get(f"{pid}.png") for pid in img_map.keys()}
-            for p in data.get("products_data", []):
-                pid = p.get("product_id")
-                if pid and pid_to_image.get(pid):
-                    p["image_data"] = pid_to_image[pid]
-
-            data["uploaded_images"] = uploaded_images
-            return data
-
-        except Exception as e:
-            st.error(f"Error loading project: {str(e)}")
+            # e.g. https://storage.googleapis.com/<bucket>/<blob_path>
+            after = url.split("storage.googleapis.com/", 1)[1]
+            bucket, blob_path = after.split("/", 1)
+            if bucket == bucket_name:
+                return blob_path
+        except Exception:
             return None
+
+    # Firebase download URLs (alt=media) cannot be reliably parsed here
+    return None
+
+
+def load_project(self, project_id: str) -> Optional[Dict]:
+    """Load a project and rehydrate images. Compatible with old & new schemas."""
+    try:
+        doc = self.db.collection(self.collection_name).document(project_id).get()
+        if not doc.exists:
+            return None
+
+        data = doc.to_dict() or {}
+
+        # --- Build uploaded_images from image_mappings (old/new schema) ---
+        uploaded_images: Dict[str, bytes] = {}
+        img_map = data.get("image_mappings", {}) or {}
+
+        for prod_id, meta in img_map.items():
+            blob_path = None
+            public_url = None
+
+            if isinstance(meta, dict):
+                blob_path = meta.get("blob_path")
+                public_url = meta.get("public_url")
+                # Try to infer blob_path if only public_url is present
+                if not blob_path and public_url:
+                    blob_path = _blob_path_from_url(public_url, self.bucket_name)
+
+            elif isinstance(meta, str):
+                # Old schema: meta is the public URL string
+                public_url = meta
+                blob_path = _blob_path_from_url(public_url, self.bucket_name)
+
+                # Optional: upgrade in-memory shape so future saves write the new format
+                img_map[prod_id] = {"blob_path": blob_path, "public_url": public_url}
+
+            # Download if we have a resolvable blob path
+            if blob_path:
+                img_bytes = self._download_blob_bytes(blob_path)
+                if img_bytes:
+                    uploaded_images[f"{prod_id}.png"] = img_bytes
+
+        # Put image bytes back onto each product for display
+        pid_to_img = {k[:-4]: v for k, v in uploaded_images.items() if k.endswith(".png")}
+        for p in data.get("products_data", []):
+            pid = p.get("product_id")
+            if pid and pid in pid_to_img:
+                p["image_data"] = pid_to_img[pid]
+
+        # Write back normalized image_mappings (in-memory)
+        data["image_mappings"] = img_map
+        data["uploaded_images"] = uploaded_images
+
+        return data
+
+    except Exception as e:
+        st.error(f"Error loading project: {str(e)}")
+        return None
+
 
     def list_projects(self) -> List[Dict]:
         """List all project summaries (no per-user filtering)."""
