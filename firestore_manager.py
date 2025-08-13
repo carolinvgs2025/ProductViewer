@@ -167,8 +167,6 @@ class ProjectFirestoreManager:
     def list_user_projects(self, user_id: str = None) -> List[Dict]:
         try:
             query = self.db.collection(self.collection_name)
-            if user_id:
-                query = query.where('user_id', '==', user_id)
 
             docs = query.stream()
             projects = []
