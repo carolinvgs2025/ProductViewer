@@ -12,13 +12,19 @@ from datetime import datetime
 import uuid
 from PIL import Image, ImageOps
 
-# Add Firebase integration
-from firestore_manager import (
-    integrate_with_streamlit_app,
-    save_current_project_to_cloud,
-    load_projects_from_cloud,
-    get_or_create_user_id
-)
+from firestore_manager import integrate_with_streamlit_app, get_or_create_user_id, load_projects_from_cloud
+
+# Initialize Firebase
+firestore_manager = integrate_with_streamlit_app()
+
+# Ensure user ID exists
+get_or_create_user_id()
+
+# Load any existing projects for this user
+if "projects" not in st.session_state:
+    st.session_state.projects = {}
+load_projects_from_cloud()
+
 
 # Set page config
 st.set_page_config(
@@ -194,10 +200,6 @@ def create_new_project(name, description=""):
         'excel_filename': None
     }
     st.session_state.projects[project_id] = project
-    
-    # Auto-save to cloud
-    if st.session_state.get('firestore_manager'):
-        st.session_state.firestore_manager.save_project(project_id, project)
     
     return project_id
 
@@ -717,6 +719,7 @@ def show_grid_page():
                 st.success("✅ Changes applied!")
                 project['pending_changes'] = {}
                 update_project_timestamp(project['id'])
+                auto_save_project(project['id'])
     with col2:
         excel_data = create_download_excel(project)
         if excel_data:
@@ -734,6 +737,7 @@ def show_grid_page():
                 product['price'] = product['original_price']
                 product['attributes'] = product['original_attributes'].copy()
             update_project_timestamp(project['id'])
+            auto_save_project(project['id'])
             st.rerun()
     with col5:
         if st.button("☁️ Save to Cloud"):
@@ -784,6 +788,13 @@ def show_grid_page():
                     display_product_card(product, j, project, view_options['visible_attributes'])
     else:
         st.info("No products match the current filters.")
+
+
+def auto_save_project(project_id):
+    """Save current project to Firestore if manager is available"""
+    if st.session_state.get('firestore_manager'):
+        project = st.session_state.projects[project_id]
+        st.session_state.firestore_manager.save_project(project_id, project)
 
 def main():
     """Main application logic"""
