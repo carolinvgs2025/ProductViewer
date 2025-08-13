@@ -1,7 +1,7 @@
 # firestore_manager.py
 """
 Firestore integration for persisting projects between sessions.
-Updated to allow initialization with local JSON or Streamlit secrets.
+Updated to store both product images and Excel file in Firebase Storage.
 """
 
 import streamlit as st
@@ -11,6 +11,7 @@ from datetime import datetime
 import uuid
 from typing import Dict, List, Optional
 import os
+import requests
 
 
 class ProjectFirestoreManager:
@@ -90,7 +91,9 @@ class ProjectFirestoreManager:
 
             products_for_firestore = []
             image_mappings = {}
+            bucket = self.storage_client.bucket(self.bucket_name)
 
+            # Upload images
             for product in project_data['products_data']:
                 product_copy = product.copy()
                 if product_copy.get('image_data'):
@@ -107,8 +110,19 @@ class ProjectFirestoreManager:
             firestore_data['products_data'] = products_for_firestore
             firestore_data['image_mappings'] = image_mappings
 
+            # Upload Excel file if available
+            if "excel_file_data" in project_data and project_data["excel_file_data"]:
+                excel_blob = bucket.blob(f"projects/{project_id}/{project_data['excel_filename'] or 'grid.xlsx'}")
+                excel_blob.upload_from_string(
+                    project_data["excel_file_data"],
+                    content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                )
+                excel_blob.make_public()
+                firestore_data['excel_url'] = excel_blob.public_url
+
             self.db.collection(self.collection_name).document(project_id).set(firestore_data)
             return True
+
         except Exception as e:
             st.error(f"Error saving project: {str(e)}")
             return False
@@ -121,6 +135,7 @@ class ProjectFirestoreManager:
 
             project_data = doc.to_dict()
 
+            # Download images
             for product in project_data.get('products_data', []):
                 if product.get('image_url'):
                     image_data = self._download_image_from_storage(product['image_url'])
@@ -134,7 +149,17 @@ class ProjectFirestoreManager:
                     uploaded_images[f"{pid}.png"] = image_data
             project_data['uploaded_images'] = uploaded_images
 
+            # Download Excel file if URL is available
+            if "excel_url" in project_data:
+                try:
+                    resp = requests.get(project_data["excel_url"])
+                    if resp.status_code == 200:
+                        project_data["excel_file_data"] = resp.content
+                except Exception as e:
+                    st.warning(f"Could not download Excel file: {e}")
+
             return project_data
+
         except Exception as e:
             st.error(f"Error loading project: {str(e)}")
             return None
@@ -277,4 +302,5 @@ def get_or_create_user_id():
     if 'user_id' not in st.session_state:
         st.session_state.user_id = str(uuid.uuid4())
     return st.session_state.user_id
+
 
