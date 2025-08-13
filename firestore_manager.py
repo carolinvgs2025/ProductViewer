@@ -284,42 +284,58 @@ def integrate_with_streamlit_app():
             # Option 2: Use Streamlit secrets (for deployment)
 
             elif 'firebase' in st.secrets:
-                keys = list(st.secrets.get("firebase", {}).keys())
-                st.info(f"Secrets(firebase) keys detected: {keys}")
-                st.info(f"Has private_key: {'private_key' in st.secrets['firebase']}")
-                pk = st.secrets['firebase'].get('private_key', '')
-                st.info(f"private_key startswith BEGIN: {str(pk).strip().startswith('-----BEGIN PRIVATE KEY-----')}")
-     
                 st.info("🔑 Found Firebase secrets in Streamlit")
                 firebase_creds = dict(st.secrets["firebase"])
-                firebase_creds["private_key"] = firebase_creds["private_key"].replace("\\n", "\n")
             
-                # Debug: show keys without revealing values
-                available_keys = list(firebase_creds.keys())
-                st.info(f"Available keys in secrets: {available_keys}")
-            
-                # Check required keys
-                required_keys = ['type', 'project_id', 'private_key_id', 'private_key',
-                                 'client_email', 'client_id', 'auth_uri', 'token_uri']
-                missing_keys = [k for k in required_keys if k not in firebase_creds]
-                if missing_keys:
-                    st.error(f"❌ Missing required keys: {missing_keys}")
+                # --- Normalize the PEM so Google/pyasn1 can parse it reliably ---
+                pk = str(firebase_creds.get("private_key", ""))
+                # 1) Convert escaped newlines if present
+                if "\\n" in pk and "\n" not in pk:
+                    pk = pk.replace("\\n", "\n")
+                # 2) Remove Windows CR and stray whitespace
+                pk = pk.replace("\r", "")
+                pk = pk.strip()
+                # 3) Remove accidental surrounding quotes/backticks (copy/paste gotchas)
+                if (pk.startswith('"') and pk.endswith('"')) or (pk.startswith("'") and pk.endswith("'")):
+                    pk = pk[1:-1].strip()
+                # 4) Strip indentation inside triple quotes (TOML can keep leading spaces)
+                lines = [ln.strip() for ln in pk.splitlines() if ln.strip() != ""]
+                # 5) Verify header/footer exactly
+                if not lines or lines[0] != "-----BEGIN PRIVATE KEY-----" or lines[-1] != "-----END PRIVATE KEY-----":
+                    st.error("❌ private_key PEM header/footer malformed. Re-paste it exactly from Google JSON.")
                     st.session_state.firestore_manager = None
-                    return None
+                    st.stop()
+                # 6) Reassemble with clean LF newlines and ensure trailing newline
+                pk = "\n".join(lines) + "\n"
+                firebase_creds["private_key"] = pk
             
+                # --- Sanity check required fields ---
+                required = [
+                    "type","project_id","private_key_id","private_key",
+                    "client_email","client_id","auth_uri","token_uri"
+                ]
+                missing = [k for k in required if not firebase_creds.get(k)]
+                if missing:
+                    st.error(f"❌ Missing required keys in Firebase secrets: {missing}")
+                    st.session_state.firestore_manager = None
+                    st.stop()
+            
+                # --- Build credentials without writing a temp file ---
                 from google.oauth2 import service_account
                 creds = service_account.Credentials.from_service_account_info(firebase_creds)
+            
                 db = firestore.Client(credentials=creds, project=firebase_creds["project_id"])
                 storage_client = storage.Client(credentials=creds, project=firebase_creds["project_id"])
             
-                # Create a ProjectFirestoreManager instance without file
                 manager = ProjectFirestoreManager()
                 manager.db = db
                 manager.storage_client = storage_client
+                # Optional: pick up bucket from secrets
+                manager.bucket_name = firebase_creds.get("bucket_name", manager.bucket_name)
+            
                 st.session_state.firestore_manager = manager
-            
                 st.success("✅ Firestore initialized with Streamlit secrets")
-            
+    
             else:
                 st.warning("⚠️ Firebase credentials not configured.")
                 st.info("To fix this:")
