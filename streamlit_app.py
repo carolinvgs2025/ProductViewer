@@ -207,10 +207,6 @@ def update_project_timestamp(project_id):
     """Update the last modified timestamp for a project"""
     if project_id in st.session_state.projects:
         st.session_state.projects[project_id]['last_modified'] = datetime.now().isoformat()
-        # Auto-save to cloud
-        if st.session_state.get('firestore_manager'):
-            project = st.session_state.projects[project_id]
-            st.session_state.firestore_manager.save_project(project_id, project)
 
 def sanitize_attr(attr):
     """Sanitize attribute names for use as keys"""
@@ -740,10 +736,7 @@ def show_grid_page():
             auto_save_project(project['id'])
             st.rerun()
     with col5:
-        if st.button("☁️ Save to Cloud"):
-            if save_current_project_to_cloud():
-                update_project_timestamp(project['id'])
-
+        save_current_project_to_cloud()
     
     # Apply filters
     filtered_products = apply_filters(
