@@ -284,6 +284,12 @@ def integrate_with_streamlit_app():
             # Option 2: Use Streamlit secrets (for deployment)
 
             elif 'firebase' in st.secrets:
+                keys = list(st.secrets.get("firebase", {}).keys())
+                st.info(f"Secrets(firebase) keys detected: {keys}")
+                st.info(f"Has private_key: {'private_key' in st.secrets['firebase']}")
+                pk = st.secrets['firebase'].get('private_key', '')
+                st.info(f"private_key startswith BEGIN: {str(pk).strip().startswith('-----BEGIN PRIVATE KEY-----')}")
+     
                 st.info("🔑 Found Firebase secrets in Streamlit")
                 firebase_creds = dict(st.secrets["firebase"])
                 firebase_creds["private_key"] = firebase_creds["private_key"].replace("\\n", "\n")
