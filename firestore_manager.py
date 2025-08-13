@@ -271,32 +271,83 @@ def integrate_with_streamlit_app():
     # Initialize Firestore manager
     if 'firestore_manager' not in st.session_state:
         try:
+            # Debug: Check what's available
+            st.info("🔍 Checking Firebase configuration...")
+            
             # Option 1: Local development with service account key file
-            # Make sure you have 'serviceAccount.json' in your project folder
             import os
             if os.path.exists('serviceAccount.json'):
+                st.info("📄 Found local serviceAccount.json file")
                 st.session_state.firestore_manager = ProjectFirestoreManager('serviceAccount.json')
-                print("Firestore initialized with local service account")
+                st.success("✅ Firestore initialized with local service account")
             
             # Option 2: Use Streamlit secrets (for deployment)
             elif 'firebase' in st.secrets:
+                st.info("🔑 Found Firebase secrets in Streamlit")
+                
+                # Debug: Show what keys are available (not the values!)
+                available_keys = list(st.secrets["firebase"].keys())
+                st.info(f"Available keys in secrets: {available_keys}")
+                
+                # Check for required keys
+                required_keys = ['type', 'project_id', 'private_key_id', 'private_key', 
+                                'client_email', 'client_id', 'auth_uri', 'token_uri']
+                missing_keys = [k for k in required_keys if k not in st.secrets["firebase"]]
+                
+                if missing_keys:
+                    st.error(f"❌ Missing required keys in Firebase secrets: {missing_keys}")
+                    st.session_state.firestore_manager = None
+                    return None
+                
                 # Get credentials from Streamlit secrets
                 firebase_creds = dict(st.secrets["firebase"])
+                
+                # Debug: Check if private_key looks correct (just the format, not the actual key)
+                if 'private_key' in firebase_creds:
+                    pk = firebase_creds['private_key']
+                    if not pk.startswith('-----BEGIN PRIVATE KEY-----'):
+                        st.error("❌ Private key doesn't start with expected header")
+                        st.info("Make sure private key in secrets uses triple quotes and includes BEGIN/END lines")
+                    else:
+                        st.success("✅ Private key format looks correct")
                 
                 # Write credentials to temp file
                 with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
                     json.dump(firebase_creds, f)
                     temp_path = f.name
+                    st.info(f"📝 Created temporary credentials file")
                 
                 st.session_state.firestore_manager = ProjectFirestoreManager(temp_path)
-                print("Firestore initialized with Streamlit secrets")
+                st.success("✅ Firestore initialized with Streamlit secrets")
             else:
-                st.warning("⚠️ Firebase credentials not configured. Projects will not persist between sessions.")
-                st.info("Add 'serviceAccount.json' to your project folder or configure Streamlit secrets.")
+                st.warning("⚠️ Firebase credentials not configured.")
+                st.info("To fix this:")
+                st.info("1. Go to your Streamlit app dashboard")
+                st.info("2. Click on your app → Settings → Secrets")
+                st.info("3. Add your Firebase credentials in TOML format")
+                st.code("""
+[firebase]
+type = "service_account"
+project_id = "product-grid-and-images"
+private_key_id = "1787c7aa8c41011ab48cf3abeec5a77b79780495..."  
+private_key = """-----BEGIN PRIVATE KEY-----
+nMIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQDhEd9wmYg9dwrG\npkSNUquonUwfauEM3fIoMIUQ0/7cxiDmNCQ1o6hM/nSliyeEk/9btxp/ThHm6vN+\nPXIvhD8JyVC5HJiSvvbdcTh2gN1hUR1rzoRtiswSPNidzXTLDCBKqIEsDwmNdpRZ\nH9rGLvow45ijA0HgKRmX7PZ9oHcudlhvxnamxJandHTIl1h6pHhQMzRj896HJ3Sk\ndrqkAtfXNGgY+NgGmG90lFdLC4tiJSzAF7XMQ3sbiMMUoeedFItFDJciO3Trrzl0\nPJo0foMdLx7bz86GMiiQ8D1/k3n1rUKB5WPdQ9Ahqgk94w7bRShBjWyAwDSg/R7c\n61i+SKHJAgMBAAECggEABX4dizaN/P0Em+43FlFWC9yB3PLraNhaRmmPt8ZKrhne\nN+v+FbqHmxBrKZaUqW9AsDzu1jxCItXpSROID7mNHcimUgws+4jSRrtyfq7cqDk1\n6/l7YR595jSKr0gyMVnbiGLmGxyHVcbW7jlhKgy/sZV+Vj0YPJeYLq1bYxu5SN6S\nBjbo4xx3/eLerWuGbWJcnzSFJLEHyoVWBPzuY1D57jRU0oCa4NK339IBVUKBqLkL\n5uhigFIfl3/lhLbgEmONmWGvT9HwytYLwQ5wPrhJ2JFIl4RQb8p5gFdvGqWs1lTv\nRuqzhgqHlmgSFAC2AHchZmrBKq5LYK7KXAHjulg5AQKBgQD6aSBy/P9ra1Q7QZ/t\nbsq8s4fbeYgRYymo52sqFxIk3TxbSHPfcMGyj/vD/VA3mhN/FgKcZdRxXbiQW4Ku\n6q7BLVeCw9nrAxNoI8REJWZQGN6utqKIDUhE+F52spvEDgjK0c5X1Aa7irUwTYJ2\niQU9DhZnbiccO5pOmm+IxJZ2yQKBgQDmF/Igtg7cd6Ga5hx6IG6riPV7A+IcPkgE\ntXhY1EUSlbpXeGWJsYjBfRMoo7sj4ti8dR2oORiZKGWS18p7imwIpcHkxPDREniM\nprFj5ic28QGFkMYfVxg4ayRczmdL8T4hUWBinHKUq3/IvavX+lqrtWkzdgsHyw8N\n1gqcTDdTAQKBgHyJ4DuQHC/+dyvpXXKmkWn8F+tNrCCJouSAA8oxIzL2XNhBVm+g\nEpWOCnbU+xpMJLol5jKGanvfUrVo7bu0uCkXNdixMyYwp2w5rZj+yL25QLa/2mGz\nyWeT5tc9yT5ehHzqj6caqiaHu8lEI0h0qQhOg1H5dLYT5pCFOkdZDkQRAoGAeDA/\n6LhQkPbocloKu/xe8rkqySQhIvGhetwzzeqrXebaHECmgUM8FR25OTw1T6x53A8s\n+6c/YxlH3WlcuiV3Axlaa5430G3ejFGyTWV2TGudiOAzrUE4RJgquVOTf4a3Fn5E\nY54m9+ORbxEsRzfdzt2G4zugzWRTK74HctcY+wECgYEA3DuJqwmigCk6LPqjxSun\nQ1oHefToWlP8hc03McjMiiEYCPoTnHDDkx0ICvfJbpOdIMWMdxXshzxoYFmPJu5e\nNVnU6Rof+GgyXoLNHpqNRwdkXbUauERDoAAnmyn/Soem1o/HLd7NgphK0zB0EXjF\nw0zPmgMUd7yMUTYiRx3U6mk=
+
+-----END PRIVATE KEY-----"""  # Use triple quotes for multi-line!
+client_email = "firebase-adminsdk-fbsvc@product-grid-and-images.iam.gserviceaccount.com"  # Copy from JSON
+client_id = "102035741433170735335"  # Copy from JSON
+auth_uri = "https://accounts.google.com/o/oauth2/auth"
+token_uri = "https://oauth2.googleapis.com/token"
+auth_provider_x509_cert_url = "https://www.googleapis.com/oauth2/v1/certs"
+client_x509_cert_url = "https://www.googleapis.com/robot/v1/metadata/x509/firebase-adminsdk-fbsvc%40product-grid-and-images.iam.gserviceaccount.com"  # Copy from JSON
+bucket_name = "product-grid-and-images.appspot.com"
+                """)
                 st.session_state.firestore_manager = None
                 
         except Exception as e:
-            st.error(f"Failed to initialize Firebase: {str(e)}")
+            st.error(f"❌ Failed to initialize Firebase: {str(e)}")
+            st.info("Full error details for debugging:")
+            st.exception(e)
             st.session_state.firestore_manager = None
     
     return st.session_state.firestore_manager
