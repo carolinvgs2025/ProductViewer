@@ -338,6 +338,46 @@ def integrate_with_streamlit_app() -> Optional[ProjectFirestoreManager]:
 # App-level helpers
 # =========================
 
+def load_project_summaries_from_cloud() -> int:
+    """
+    Load only project summaries (no products/images) into session_state.project_summaries.
+    Does NOT populate session_state.projects.
+    """
+    mgr: ProjectFirestoreManager = st.session_state.get("firestore_manager")
+    if not mgr:
+        st.session_state.project_summaries = []
+        return 0
+
+    summaries = mgr.list_projects()  # already summaries, no images
+    st.session_state.project_summaries = summaries or []
+    st.success(f"☁️ Loaded {len(st.session_state.project_summaries)} project summary(ies) from cloud")
+    return len(st.session_state.project_summaries)
+
+
+def ensure_project_loaded(project_id: str) -> bool:
+    """
+    Ensure a full project (with products/images) exists in session_state.projects[project_id].
+    Fetches from Firestore if not already present. Returns True on success.
+    """
+    if "projects" not in st.session_state:
+        st.session_state.projects = {}
+
+    if project_id in st.session_state.projects:
+        return True
+
+    mgr: ProjectFirestoreManager = st.session_state.get("firestore_manager")
+    if not mgr:
+        return False
+
+    data = mgr.load_project(project_id)
+    if not data:
+        st.error("Failed to load project from Firestore.")
+        return False
+
+    st.session_state.projects[project_id] = data
+    return True
+
+
 def save_current_project_to_cloud() -> bool:
     """Save the active project one time (button handler should call this)."""
     mgr: ProjectFirestoreManager = st.session_state.get("firestore_manager")
@@ -351,29 +391,6 @@ def save_current_project_to_cloud() -> bool:
     if ok:
         st.success("☁️ Project saved to cloud!")
     return ok
-
-
-def load_projects_from_cloud() -> int:
-    """
-    Load all projects from Firestore into session_state.
-    Resets the local dict to avoid duplicates on rerun.
-    """
-    mgr: ProjectFirestoreManager = st.session_state.get("firestore_manager")
-    if not mgr:
-        return 0
-
-    summaries = mgr.list_projects()
-    st.session_state.projects = {}
-    for s in summaries:
-        pid = s.get("id")
-        if not pid:
-            continue
-        pdata = mgr.load_project(pid)
-        if pdata:
-            st.session_state.projects[pid] = pdata
-
-    st.success(f"☁️ Loaded {len(st.session_state.projects)} project(s) from cloud")
-    return len(st.session_state.projects)
 
 
 def get_or_create_user_id() -> str:
