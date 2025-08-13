@@ -522,12 +522,18 @@ def show_projects_page():
                         ✏️ {pending_changes} pending changes | 🕒 Last modified: {last_modified}
                     </div>
                     """, unsafe_allow_html=True)
-                
+
+                    
+                summaries = st.session_state.get("project_summaries", [])
+
                 with col2:
                     if st.button("Open", key=f"open_{project_id}", type="primary"):
-                        st.session_state.current_project = project_id
-                        st.session_state.page = 'grid'
-                        st.rerun()
+                        if ensure_project_loaded(project_id):
+                            st.session_state.current_project = project_id
+                            st.session_state.page = 'grid'
+                            st.rerun()
+                        else:
+                            st.error("Could not load project.")
                 
                 with col3:
                     if st.button("🗑️ Delete", key=f"delete_{project_id}"):
