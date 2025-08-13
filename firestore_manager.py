@@ -325,7 +325,7 @@ def integrate_with_streamlit_app():
                 st.info("1. Go to your Streamlit app dashboard")
                 st.info("2. Click on your app → Settings → Secrets")
                 st.info("3. Add your Firebase credentials in TOML format")
-                st.code("""
+                st.code('''
 [firebase]
 type = "service_account"
 project_id = "product-grid-and-images"
@@ -341,7 +341,7 @@ token_uri = "https://oauth2.googleapis.com/token"
 auth_provider_x509_cert_url = "https://www.googleapis.com/oauth2/v1/certs"
 client_x509_cert_url = "https://www.googleapis.com/robot/v1/metadata/x509/firebase-adminsdk-fbsvc%40product-grid-and-images.iam.gserviceaccount.com"  # Copy from JSON
 bucket_name = "product-grid-and-images.appspot.com"
-                """)
+                ''')
                 st.session_state.firestore_manager = None
                 
         except Exception as e:
