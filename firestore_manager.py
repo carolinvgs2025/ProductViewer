@@ -33,7 +33,7 @@ class ProjectFirestoreManager:
             self.storage_client = storage.Client()
         
         # UPDATE THIS with your actual bucket name from Firebase Console
-        self.bucket_name = "product-grid-and-images.firebasestorage.app"  # Replace with your bucket name
+        self.bucket_name = "product-grid-and-images.appspot.com"  
         self.collection_name = "projects"
         
     def _upload_image_to_storage(self, image_data: bytes, image_name: str, project_id: str) -> str:
