@@ -12,6 +12,14 @@ from datetime import datetime
 import uuid
 from PIL import Image, ImageOps
 
+# Add Firebase integration
+from firestore_manager import (
+    integrate_with_streamlit_app,
+    save_current_project_to_cloud,
+    load_projects_from_cloud,
+    get_or_create_user_id
+)
+
 # Set page config
 st.set_page_config(
     page_title="Interactive Product Grid",
@@ -150,10 +158,22 @@ def build_img_srcset(image_bytes: bytes, css_width: int, retina_factor: int = RE
 # Initialize session state for projects
 if 'projects' not in st.session_state:
     st.session_state.projects = {}
+    
+# Initialize Firebase connection
+if 'firestore_manager' not in st.session_state:
+    integrate_with_streamlit_app()
+    if st.session_state.firestore_manager:
+        # Load existing projects from cloud
+        load_projects_from_cloud()
+
 if 'current_project' not in st.session_state:
     st.session_state.current_project = None
 if 'page' not in st.session_state:
     st.session_state.page = 'projects'
+
+# Initialize user ID for project isolation
+if 'user_id' not in st.session_state:
+    st.session_state.user_id = get_or_create_user_id()
 
 # Project data structure
 def create_new_project(name, description=""):
@@ -174,12 +194,21 @@ def create_new_project(name, description=""):
         'excel_filename': None
     }
     st.session_state.projects[project_id] = project
+    
+    # Auto-save to cloud
+    if st.session_state.get('firestore_manager'):
+        st.session_state.firestore_manager.save_project(project_id, project)
+    
     return project_id
 
 def update_project_timestamp(project_id):
     """Update the last modified timestamp for a project"""
     if project_id in st.session_state.projects:
         st.session_state.projects[project_id]['last_modified'] = datetime.now().isoformat()
+        # Auto-save to cloud
+        if st.session_state.get('firestore_manager'):
+            project = st.session_state.projects[project_id]
+            st.session_state.firestore_manager.save_project(project_id, project)
 
 def sanitize_attr(attr):
     """Sanitize attribute names for use as keys"""
@@ -489,6 +518,9 @@ def show_projects_page():
                 
                 with col3:
                     if st.button("🗑️ Delete", key=f"delete_{project_id}"):
+                        # Delete from cloud first
+                        if st.session_state.get('firestore_manager'):
+                            st.session_state.firestore_manager.delete_project(project_id)
                         del st.session_state.projects[project_id]
                         st.rerun()
                 
@@ -536,6 +568,7 @@ def show_create_project_page():
         if uploaded_images:
             st.success(f"✅ {len(uploaded_images)} images uploaded")
     
+    # THIS PART NEEDS TO BE INDENTED (currently at line 620)
     if st.button("🚀 Create Project", type="primary", disabled=not uploaded_excel):
         if uploaded_excel:
             image_dict = {img_file.name: img_file.getvalue() for img_file in uploaded_images} if uploaded_images else {}
@@ -551,7 +584,13 @@ def show_create_project_page():
             project['uploaded_images'] = image_dict
             project['excel_filename'] = uploaded_excel.name
             
-            st.success(f"✅ Project '{project_name}' created with {len(products)} products!")
+            # Save complete project to cloud
+            if st.session_state.get('firestore_manager'):
+                st.session_state.firestore_manager.save_project(project_id, project)
+                st.success(f"✅ Project '{project_name}' created with {len(products)} products and saved to cloud!")
+            else:
+                st.success(f"✅ Project '{project_name}' created with {len(products)} products!")
+            
             st.balloons()
             
             st.session_state.current_project = project_id
@@ -671,7 +710,7 @@ def show_grid_page():
             distribution_filters = ['All']
     
     # Main content area - Action buttons
-    col1, col2, col3, col4 = st.columns(4)
+    col1, col2, col3, col4, col5 = st.columns(5)
     with col1:
         if project['pending_changes']:
             if st.button("🔄 Apply Changes", type="primary"):
@@ -696,6 +735,11 @@ def show_grid_page():
                 product['attributes'] = product['original_attributes'].copy()
             update_project_timestamp(project['id'])
             st.rerun()
+    with col5:
+        if st.button("☁️ Save to Cloud"):
+            if save_current_project_to_cloud():
+                update_project_timestamp(project['id'])
+
     
     # Apply filters
     filtered_products = apply_filters(
