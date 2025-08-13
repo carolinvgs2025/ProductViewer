@@ -265,4 +265,208 @@ class ProjectFirestoreManager:
                 if pid:
                     buf = uploaded_images.get(f"{pid}.png")
                     if buf:
+                        p["image_data"] = buf
 
+            # Replace with normalized map so any subsequent save writes the new shape.
+            if normalized_map:
+                data["image_mappings"] = normalized_map
+
+            data["uploaded_images"] = uploaded_images
+            return data
+
+        except Exception as e:
+            st.error(f"Error loading project: {str(e)}")
+            return None
+
+    def list_projects(self) -> List[Dict]:
+        """List all project summaries (no per-user filtering)."""
+        try:
+            docs = self.db.collection(self.collection_name).stream()
+            items: List[Dict] = []
+            for d in docs:
+                v = d.to_dict() or {}
+                items.append({
+                    "id": v.get("id"),
+                    "name": v.get("name", ""),
+                    "description": v.get("description", ""),
+                    "created_date": v.get("created_date", ""),
+                    "last_modified": v.get("last_modified", ""),
+                    "num_products": len(v.get("products_data", [])),
+                    "num_attributes": len(v.get("attributes", [])),
+                    "num_pending_changes": len(v.get("pending_changes", {})),
+                })
+            return sorted(items, key=lambda x: x.get("last_modified", ""), reverse=True)
+        except Exception as e:
+            st.error(f"Error listing projects: {str(e)}")
+            return []
+
+    def delete_project(self, project_id: str) -> bool:
+        """Delete a project and its images (works with legacy/new schemas)."""
+        try:
+            doc = self.db.collection(self.collection_name).document(project_id).get()
+            if doc.exists:
+                v = doc.to_dict() or {}
+                # Handle both dict and string entries
+                for meta in (v.get("image_mappings") or {}).values():
+                    if isinstance(meta, dict):
+                        blob_path = (meta or {}).get("blob_path")
+                        if not blob_path and meta.get("public_url"):
+                            blob_path = _blob_path_from_url(meta["public_url"], self.bucket_name)
+                    elif isinstance(meta, str):
+                        blob_path = _blob_path_from_url(meta, self.bucket_name)
+                    else:
+                        blob_path = None
+
+                    if blob_path:
+                        try:
+                            self._bucket().blob(blob_path).delete()
+                        except Exception as e:
+                            print(f"Delete skipped for {blob_path}: {e}")
+
+                # Delete Excel if present
+                excel_blob_path = v.get("excel_blob_path")
+                if excel_blob_path:
+                    try:
+                        self._bucket().blob(excel_blob_path).delete()
+                    except Exception as e:
+                        print(f"Delete skipped for {excel_blob_path}: {e}")
+
+            # Remove Firestore doc last
+            self.db.collection(self.collection_name).document(project_id).delete()
+            return True
+        except Exception as e:
+            st.error(f"Error deleting project: {str(e)}")
+            return False
+
+
+# =========================
+# Integration helpers
+# =========================
+
+def integrate_with_streamlit_app() -> Optional[ProjectFirestoreManager]:
+    """
+    Initialize a singleton ProjectFirestoreManager and put it in session_state.
+    Requires bucket_name in secrets when using Streamlit secrets.
+    """
+    if "firestore_manager" in st.session_state and st.session_state.firestore_manager:
+        return st.session_state.firestore_manager
+
+    try:
+        st.info("🔍 Checking Firebase configuration...")
+
+        # Local JSON
+        if os.path.exists("serviceAccount.json"):
+            st.info("📄 Found local serviceAccount.json")
+            bucket_name = os.environ.get("FIREBASE_STORAGE_BUCKET") or st.secrets.get("firebase", {}).get("bucket_name")
+            if not bucket_name:
+                st.error("Missing bucket_name. Set env FIREBASE_STORAGE_BUCKET or secrets [firebase].bucket_name")
+                st.stop()
+            mgr = ProjectFirestoreManager(
+                firebase_config_json_path="serviceAccount.json",
+                bucket_name=bucket_name,
+            )
+            st.success("✅ Firestore initialized with local JSON")
+            st.session_state.firestore_manager = mgr
+            return mgr
+
+        # Streamlit secrets
+        if "firebase" in st.secrets:
+            st.info("🔑 Found Firebase secrets")
+            fb = dict(st.secrets["firebase"])
+
+            required = [
+                "type", "project_id", "private_key_id", "private_key",
+                "client_email", "client_id", "auth_uri", "token_uri", "bucket_name"
+            ]
+            missing = [k for k in required if not fb.get(k)]
+            if missing:
+                st.error(f"❌ Missing keys in [firebase] secrets: {missing}")
+                st.stop()
+
+            fb["private_key"] = _normalize_pem(str(fb["private_key"]))
+            creds = service_account.Credentials.from_service_account_info(fb)
+
+            mgr = ProjectFirestoreManager(
+                creds=creds,
+                project_id=fb["project_id"],
+                bucket_name=fb["bucket_name"],  # e.g. your-project.firebasestorage.app
+            )
+            st.success("✅ Firestore initialized with Streamlit secrets")
+            st.session_state.firestore_manager = mgr
+            return mgr
+
+        st.warning("⚠️ Firebase credentials not configured.")
+        st.stop()
+
+    except Exception as e:
+        st.error(f"❌ Firebase init failed: {e}")
+        st.exception(e)
+        st.session_state.firestore_manager = None
+        return None
+
+
+# =========================
+# App-level helpers
+# =========================
+
+def load_project_summaries_from_cloud() -> int:
+    """
+    Load only project summaries (no products/images) into session_state.project_summaries.
+    Does NOT populate session_state.projects.
+    """
+    mgr: ProjectFirestoreManager = st.session_state.get("firestore_manager")
+    if not mgr:
+        st.session_state.project_summaries = []
+        return 0
+
+    summaries = mgr.list_projects()  # already summaries, no images
+    st.session_state.project_summaries = summaries or []
+    st.success(f"☁️ Loaded {len(st.session_state.project_summaries)} project summary(ies) from cloud")
+    return len(st.session_state.project_summaries)
+
+
+def ensure_project_loaded(project_id: str) -> bool:
+    """
+    Ensure a full project (with products/images) exists in session_state.projects[project_id].
+    Fetches from Firestore if not already present. Returns True on success.
+    """
+    if "projects" not in st.session_state:
+        st.session_state.projects = {}
+
+    if project_id in st.session_state.projects:
+        return True
+
+    mgr: ProjectFirestoreManager = st.session_state.get("firestore_manager")
+    if not mgr:
+        return False
+
+    data = mgr.load_project(project_id)
+    if not data:
+        st.error("Failed to load project from Firestore.")
+        return False
+
+    st.session_state.projects[project_id] = data
+    return True
+
+
+def save_current_project_to_cloud() -> bool:
+    """Save the active project one time (button handler should call this)."""
+    mgr: ProjectFirestoreManager = st.session_state.get("firestore_manager")
+    proj_id: Optional[str] = st.session_state.get("current_project")
+    if not mgr or not proj_id:
+        return False
+    project = st.session_state.projects.get(proj_id)
+    if not project:
+        return False
+    ok = mgr.save_project(proj_id, project)
+    if ok:
+        st.success("☁️ Project saved to cloud!")
+    return ok
+
+
+def get_or_create_user_id() -> str:
+    """Legacy helper to maintain compatibility with your app; not used for filtering."""
+    if "user_id" not in st.session_state:
+        import uuid
+        st.session_state.user_id = str(uuid.uuid4())
+    return st.session_state.user_id
