@@ -176,25 +176,7 @@ def build_img_srcset(image_bytes: bytes, css_width: int, retina_factor: int = RE
     return html
 # --------------------------------------------------------------------
 
-# Initialize session state for projects
-if 'projects' not in st.session_state:
-    st.session_state.projects = {}
-    
-# Initialize Firebase connection
-if 'firestore_manager' not in st.session_state:
-    integrate_with_streamlit_app()
-    if st.session_state.firestore_manager:
-        # Load existing projects from cloud
-        load_projects_from_cloud()
 
-if 'current_project' not in st.session_state:
-    st.session_state.current_project = None
-if 'page' not in st.session_state:
-    st.session_state.page = 'projects'
-
-# Initialize user ID for project isolation
-if 'user_id' not in st.session_state:
-    st.session_state.user_id = get_or_create_user_id()
 
 # Project data structure
 def create_new_project(name, description=""):
@@ -476,9 +458,10 @@ def create_download_excel(project):
     return output.getvalue()
 
 def show_projects_page():
-    """Display the main projects page"""
+    """Display the main projects page (lazy: render from summaries only)."""
     st.title("📁 Product Grid Projects")
-    
+
+    # CTA to create a new project
     with st.container():
         st.markdown("""
         <div class="new-project-section">
@@ -486,45 +469,56 @@ def show_projects_page():
             <p>Create a new product grid project with your Excel data and images</p>
         </div>
         """, unsafe_allow_html=True)
-        
+
         if st.button("➕ Create New Project", type="primary", use_container_width=True):
             st.session_state.page = 'create_project'
             st.rerun()
-    
-    if st.session_state.projects:
+
+    summaries = st.session_state.get("project_summaries", [])
+
+    if summaries:
         st.header("📋 Your Projects")
-        
-        sorted_projects = sorted(
-            st.session_state.projects.items(),
-            key=lambda x: x[1]['last_modified'],
+
+        # Newest first (already sorted by helper, but sort again to be safe)
+        summaries = sorted(
+            summaries,
+            key=lambda s: s.get('last_modified', ''),
             reverse=True
         )
-        
-        for project_id, project in sorted_projects:
+
+        for s in summaries:
+            project_id = s["id"]
+            name = s.get("name", "Untitled")
+            desc = s.get("description", "")
+            last_modified = s.get("last_modified", "")
+            num_products = s.get("num_products", 0)
+            num_attributes = s.get("num_attributes", 0)
+            pending_changes = s.get("num_pending_changes", 0)
+
             with st.container():
                 st.markdown('<div class="project-card">', unsafe_allow_html=True)
-                
-                col1, col2, col3 = st.columns([3, 1, 1])
-                
-                with col1:
-                    st.markdown(f"### {project['name']}")
-                    if project['description']:
-                        st.write(project['description'])
-                    
-                    num_products = len(project['products_data'])
-                    num_attributes = len(project['attributes'])
-                    pending_changes = len(project['pending_changes'])
-                    last_modified = datetime.fromisoformat(project['last_modified']).strftime("%Y-%m-%d %H:%M")
-                    
-                    st.markdown(f"""
-                    <div class="project-stats">
-                        📦 {num_products} products | 🏷️ {num_attributes} attributes | 
-                        ✏️ {pending_changes} pending changes | 🕒 Last modified: {last_modified}
-                    </div>
-                    """, unsafe_allow_html=True)
 
-                    
-                summaries = st.session_state.get("project_summaries", [])
+                col1, col2, col3 = st.columns([3, 1, 1])
+
+                with col1:
+                    st.markdown(f"### {name}")
+                    if desc:
+                        st.write(desc)
+                    if last_modified:
+                        try:
+                            from datetime import datetime
+                            lm_disp = datetime.fromisoformat(last_modified).strftime("%Y-%m-%d %H:%M")
+                        except Exception:
+                            lm_disp = last_modified
+                    else:
+                        lm_disp = "—"
+
+                    st.markdown(f"""
+                        <div class="project-stats">
+                            📦 {num_products} products | 🏷️ {num_attributes} attributes | 
+                            ✏️ {pending_changes} pending changes | 🕒 Last modified: {lm_disp}
+                        </div>
+                    """, unsafe_allow_html=True)
 
                 with col2:
                     if st.button("Open", key=f"open_{project_id}", type="primary"):
@@ -534,16 +528,21 @@ def show_projects_page():
                             st.rerun()
                         else:
                             st.error("Could not load project.")
-                
+
                 with col3:
                     if st.button("🗑️ Delete", key=f"delete_{project_id}"):
-                        # Delete from cloud first
-                        if st.session_state.get('firestore_manager'):
-                            st.session_state.firestore_manager.delete_project(project_id)
-                        del st.session_state.projects[project_id]
-                        st.rerun()
-                
+                        mgr = st.session_state.get("firestore_manager")
+                        if mgr and mgr.delete_project(project_id):
+                            # remove from both summaries and any cached full data
+                            st.session_state.project_summaries = [
+                                x for x in st.session_state.project_summaries if x["id"] != project_id
+                            ]
+                            if project_id in st.session_state.get("projects", {}):
+                                del st.session_state.projects[project_id]
+                            st.rerun()
+
                 st.markdown('</div>', unsafe_allow_html=True)
+
     else:
         st.info("No projects yet. Create your first project to get started!")
 
