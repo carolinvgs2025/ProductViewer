@@ -12,7 +12,7 @@ from datetime import datetime
 import uuid
 from PIL import Image, ImageOps
 
-from firestore_manager import integrate_with_streamlit_app, get_or_create_user_id, load_projects_from_clou, save_current_project_to_cloud
+from firestore_manager import integrate_with_streamlit_app, get_or_create_user_id, load_projects_from_cloud, save_current_project_to_cloud
 
 # Initialize Firebase
 firestore_manager = integrate_with_streamlit_app()
