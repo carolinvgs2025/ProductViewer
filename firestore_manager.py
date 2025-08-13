@@ -282,43 +282,38 @@ def integrate_with_streamlit_app():
                 st.success("✅ Firestore initialized with local service account")
             
             # Option 2: Use Streamlit secrets (for deployment)
+
             elif 'firebase' in st.secrets:
                 st.info("🔑 Found Firebase secrets in Streamlit")
-                
-                # Debug: Show what keys are available (not the values!)
-                available_keys = list(st.secrets["firebase"].keys())
+                firebase_creds = dict(st.secrets["firebase"])
+                firebase_creds["private_key"] = firebase_creds["private_key"].replace("\\n", "\n")
+            
+                # Debug: show keys without revealing values
+                available_keys = list(firebase_creds.keys())
                 st.info(f"Available keys in secrets: {available_keys}")
-                
-                # Check for required keys
-                required_keys = ['type', 'project_id', 'private_key_id', 'private_key', 
-                                'client_email', 'client_id', 'auth_uri', 'token_uri']
-                missing_keys = [k for k in required_keys if k not in st.secrets["firebase"]]
-                
+            
+                # Check required keys
+                required_keys = ['type', 'project_id', 'private_key_id', 'private_key',
+                                 'client_email', 'client_id', 'auth_uri', 'token_uri']
+                missing_keys = [k for k in required_keys if k not in firebase_creds]
                 if missing_keys:
-                    st.error(f"❌ Missing required keys in Firebase secrets: {missing_keys}")
+                    st.error(f"❌ Missing required keys: {missing_keys}")
                     st.session_state.firestore_manager = None
                     return None
-                
-                # Get credentials from Streamlit secrets
-                firebase_creds = dict(st.secrets["firebase"])
-                
-                # Debug: Check if private_key looks correct (just the format, not the actual key)
-                if 'private_key' in firebase_creds:
-                    pk = firebase_creds['private_key']
-                    if not pk.startswith('-----BEGIN PRIVATE KEY-----'):
-                        st.error("❌ Private key doesn't start with expected header")
-                        st.info("Make sure private key in secrets uses triple quotes and includes BEGIN/END lines")
-                    else:
-                        st.success("✅ Private key format looks correct")
-                
-                # Write credentials to temp file
-                with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
-                    json.dump(firebase_creds, f)
-                    temp_path = f.name
-                    st.info(f"📝 Created temporary credentials file")
-                
-                st.session_state.firestore_manager = ProjectFirestoreManager(temp_path)
+            
+                from google.oauth2 import service_account
+                creds = service_account.Credentials.from_service_account_info(firebase_creds)
+                db = firestore.Client(credentials=creds, project=firebase_creds["project_id"])
+                storage_client = storage.Client(credentials=creds, project=firebase_creds["project_id"])
+            
+                # Create a ProjectFirestoreManager instance without file
+                manager = ProjectFirestoreManager()
+                manager.db = db
+                manager.storage_client = storage_client
+                st.session_state.firestore_manager = manager
+            
                 st.success("✅ Firestore initialized with Streamlit secrets")
+            
             else:
                 st.warning("⚠️ Firebase credentials not configured.")
                 st.info("To fix this:")
