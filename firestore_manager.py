@@ -1,89 +1,79 @@
 # firestore_manager.py
 """
 Firestore integration for persisting projects between sessions.
-Add this as a separate file in your project.
+Updated to allow initialization with local JSON or Streamlit secrets.
 """
 
 import streamlit as st
-from google.cloud import firestore
-from google.cloud import storage
-import json
-import base64
+from google.cloud import firestore, storage
+from google.oauth2 import service_account
 from datetime import datetime
 import uuid
 from typing import Dict, List, Optional
-import io
-import tempfile
+import os
+
 
 class ProjectFirestoreManager:
-    def __init__(self, firebase_config_json_path: str = None):
+    def __init__(
+        self,
+        firebase_config_json_path: str = None,
+        creds=None,
+        project_id: str = None,
+        bucket_name: str = None
+    ):
         """
         Initialize Firestore connection.
-        
+
         Args:
-            firebase_config_json_path: Path to your Firebase service account JSON file
+            firebase_config_json_path: Path to Firebase service account JSON
+            creds: google.oauth2.service_account.Credentials object
+            project_id: GCP project ID
+            bucket_name: Optional GCS bucket name
         """
-        # Initialize Firestore client
         if firebase_config_json_path:
             self.db = firestore.Client.from_service_account_json(firebase_config_json_path)
             self.storage_client = storage.Client.from_service_account_json(firebase_config_json_path)
+        elif creds and project_id:
+            self.db = firestore.Client(credentials=creds, project=project_id)
+            self.storage_client = storage.Client(credentials=creds, project=project_id)
         else:
-            # Use default credentials (for deployment on Google Cloud)
-            self.db = firestore.Client()
-            self.storage_client = storage.Client()
-        
-        # UPDATE THIS with your actual bucket name from Firebase Console
-        self.bucket_name = "product-grid-and-images.appspot.com"  
+            raise ValueError("Firestore requires either a JSON path or (creds, project_id).")
+
+        self.bucket_name = bucket_name or f"{project_id}.appspot.com"
         self.collection_name = "projects"
-        
+
+    # ---------------- IMAGE UPLOAD/DOWNLOAD ----------------
+
     def _upload_image_to_storage(self, image_data: bytes, image_name: str, project_id: str) -> str:
-        """Upload image to Cloud Storage and return URL."""
         try:
             bucket = self.storage_client.bucket(self.bucket_name)
             blob_name = f"projects/{project_id}/images/{image_name}"
             blob = bucket.blob(blob_name)
-            
             blob.upload_from_string(image_data, content_type='image/png')
-            
-            # Make the blob publicly accessible (optional)
             blob.make_public()
-            
             return blob.public_url
         except Exception as e:
             st.error(f"Error uploading image {image_name}: {str(e)}")
             return None
-    
-    def _download_image_from_storage(self, image_url: str) -> bytes:
-        """Download image from Cloud Storage URL."""
+
+    def _download_image_from_storage(self, image_url: str) -> Optional[bytes]:
         try:
-            # Extract blob name from URL
             if "storage.googleapis.com" in image_url:
                 parts = image_url.split("/")
-                blob_name = "/".join(parts[4:])  # Skip protocol, domain, bucket name
+                blob_name = "/".join(parts[4:])
             else:
                 return None
-                
             bucket = self.storage_client.bucket(self.bucket_name)
             blob = bucket.blob(blob_name)
-            
             return blob.download_as_bytes()
         except Exception as e:
             print(f"Error downloading image: {str(e)}")
             return None
-    
+
+    # ---------------- CRUD ----------------
+
     def save_project(self, project_id: str, project_data: Dict) -> bool:
-        """
-        Save a project to Firestore.
-        
-        Args:
-            project_id: Unique project identifier
-            project_data: Project dictionary from session state
-        
-        Returns:
-            Success status
-        """
         try:
-            # Prepare project data for Firestore
             firestore_data = {
                 'id': project_id,
                 'name': project_data['name'],
@@ -95,115 +85,70 @@ class ProjectFirestoreManager:
                 'filter_options': project_data['filter_options'],
                 'pending_changes': project_data['pending_changes'],
                 'excel_filename': project_data.get('excel_filename'),
-                'user_id': st.session_state.get('user_id', 'anonymous'),  # Add user management
+                'user_id': st.session_state.get('user_id', 'anonymous'),
             }
-            
-            # Handle products data separately (without image bytes)
+
             products_for_firestore = []
-            image_mappings = {}  # Map product_id to image URL
-            
+            image_mappings = {}
+
             for product in project_data['products_data']:
                 product_copy = product.copy()
-                
-                # Upload image if exists
                 if product_copy.get('image_data'):
                     image_name = f"{product_copy['product_id']}.png"
                     image_url = self._upload_image_to_storage(
-                        product_copy['image_data'],
-                        image_name,
-                        project_id
+                        product_copy['image_data'], image_name, project_id
                     )
                     if image_url:
                         image_mappings[product_copy['product_id']] = image_url
-                        # Remove image data from product (store URL reference instead)
                         product_copy['image_url'] = image_url
                     del product_copy['image_data']
-                
                 products_for_firestore.append(product_copy)
-            
+
             firestore_data['products_data'] = products_for_firestore
             firestore_data['image_mappings'] = image_mappings
-            
-            # Save to Firestore
-            doc_ref = self.db.collection(self.collection_name).document(project_id)
-            doc_ref.set(firestore_data)
-            
+
+            self.db.collection(self.collection_name).document(project_id).set(firestore_data)
             return True
-            
         except Exception as e:
             st.error(f"Error saving project: {str(e)}")
             return False
-    
+
     def load_project(self, project_id: str) -> Optional[Dict]:
-        """
-        Load a project from Firestore.
-        
-        Args:
-            project_id: Project identifier
-        
-        Returns:
-            Project data dictionary or None if not found
-        """
         try:
-            doc_ref = self.db.collection(self.collection_name).document(project_id)
-            doc = doc_ref.get()
-            
+            doc = self.db.collection(self.collection_name).document(project_id).get()
             if not doc.exists:
                 return None
-            
+
             project_data = doc.to_dict()
-            
-            # Download images and restore image_data
+
             for product in project_data.get('products_data', []):
                 if product.get('image_url'):
-                    try:
-                        image_data = self._download_image_from_storage(product['image_url'])
-                        if image_data:
-                            product['image_data'] = image_data
-                    except Exception as e:
-                        print(f"Could not load image for product {product['product_id']}: {e}")
-                        product['image_data'] = None
-            
-            # Rebuild uploaded_images dict for compatibility
-            uploaded_images = {}
-            for product_id, image_url in project_data.get('image_mappings', {}).items():
-                try:
-                    image_data = self._download_image_from_storage(image_url)
+                    image_data = self._download_image_from_storage(product['image_url'])
                     if image_data:
-                        uploaded_images[f"{product_id}.png"] = image_data
-                except:
-                    pass
-            
+                        product['image_data'] = image_data
+
+            uploaded_images = {}
+            for pid, image_url in project_data.get('image_mappings', {}).items():
+                image_data = self._download_image_from_storage(image_url)
+                if image_data:
+                    uploaded_images[f"{pid}.png"] = image_data
             project_data['uploaded_images'] = uploaded_images
-            
+
             return project_data
-            
         except Exception as e:
             st.error(f"Error loading project: {str(e)}")
             return None
-    
+
     def list_user_projects(self, user_id: str = None) -> List[Dict]:
-        """
-        List all projects for a user.
-        
-        Args:
-            user_id: User identifier (optional)
-        
-        Returns:
-            List of project summaries
-        """
         try:
             query = self.db.collection(self.collection_name)
-            
             if user_id:
                 query = query.where('user_id', '==', user_id)
-            
+
             docs = query.stream()
-            
             projects = []
             for doc in docs:
                 data = doc.to_dict()
-                # Return summary without full product data
                 projects.append({
                     'id': data['id'],
                     'name': data['name'],
@@ -214,169 +159,96 @@ class ProjectFirestoreManager:
                     'num_attributes': len(data.get('attributes', [])),
                     'num_pending_changes': len(data.get('pending_changes', {}))
                 })
-            
             return sorted(projects, key=lambda x: x['last_modified'], reverse=True)
-            
         except Exception as e:
             st.error(f"Error listing projects: {str(e)}")
             return []
-    
+
     def delete_project(self, project_id: str) -> bool:
-        """
-        Delete a project from Firestore.
-        
-        Args:
-            project_id: Project identifier
-        
-        Returns:
-            Success status
-        """
         try:
-            # Delete images from Cloud Storage
-            doc_ref = self.db.collection(self.collection_name).document(project_id)
-            doc = doc_ref.get()
-            
+            doc = self.db.collection(self.collection_name).document(project_id).get()
             if doc.exists:
                 data = doc.to_dict()
-                # Delete all images for this project
                 for image_url in data.get('image_mappings', {}).values():
-                    try:
-                        # Extract blob name and delete
-                        if "storage.googleapis.com" in image_url:
-                            parts = image_url.split("/")
-                            blob_name = "/".join(parts[4:])
-                            bucket = self.storage_client.bucket(self.bucket_name)
-                            blob = bucket.blob(blob_name)
-                            blob.delete()
-                    except:
-                        pass  # Continue even if image deletion fails
-            
-            # Delete Firestore document
-            doc_ref.delete()
+                    if "storage.googleapis.com" in image_url:
+                        parts = image_url.split("/")
+                        blob_name = "/".join(parts[4:])
+                        bucket = self.storage_client.bucket(self.bucket_name)
+                        bucket.blob(blob_name).delete()
+            self.db.collection(self.collection_name).document(project_id).delete()
             return True
-            
         except Exception as e:
             st.error(f"Error deleting project: {str(e)}")
             return False
 
 
-# Integration helper functions for your Streamlit app
+# ---------------- INTEGRATION ----------------
 
 def integrate_with_streamlit_app():
-    """
-    Add this to your main streamlit_app.py to integrate Firestore.
-    Call this once at app startup.
-    """
-    
-    # Initialize Firestore manager
     if 'firestore_manager' not in st.session_state:
         try:
-            # Debug: Check what's available
             st.info("🔍 Checking Firebase configuration...")
-            
-            # Option 1: Local development with service account key file
-            import os
+
             if os.path.exists('serviceAccount.json'):
                 st.info("📄 Found local serviceAccount.json file")
-                st.session_state.firestore_manager = ProjectFirestoreManager('serviceAccount.json')
+                st.session_state.firestore_manager = ProjectFirestoreManager(
+                    firebase_config_json_path='serviceAccount.json'
+                )
                 st.success("✅ Firestore initialized with local service account")
-            
-            # Option 2: Use Streamlit secrets (for deployment)
 
             elif 'firebase' in st.secrets:
                 st.info("🔑 Found Firebase secrets in Streamlit")
                 firebase_creds = dict(st.secrets["firebase"])
-            
-                # --- Normalize the PEM so Google/pyasn1 can parse it reliably ---
+
+                # Normalize PEM formatting
                 pk = str(firebase_creds.get("private_key", ""))
-                # 1) Convert escaped newlines if present
                 if "\\n" in pk and "\n" not in pk:
                     pk = pk.replace("\\n", "\n")
-                # 2) Remove Windows CR and stray whitespace
-                pk = pk.replace("\r", "")
-                pk = pk.strip()
-                # 3) Remove accidental surrounding quotes/backticks (copy/paste gotchas)
+                pk = pk.replace("\r", "").strip()
                 if (pk.startswith('"') and pk.endswith('"')) or (pk.startswith("'") and pk.endswith("'")):
                     pk = pk[1:-1].strip()
-                # 4) Strip indentation inside triple quotes (TOML can keep leading spaces)
                 lines = [ln.strip() for ln in pk.splitlines() if ln.strip() != ""]
-                # 5) Verify header/footer exactly
                 if not lines or lines[0] != "-----BEGIN PRIVATE KEY-----" or lines[-1] != "-----END PRIVATE KEY-----":
-                    st.error("❌ private_key PEM header/footer malformed. Re-paste it exactly from Google JSON.")
-                    st.session_state.firestore_manager = None
+                    st.error("❌ private_key PEM header/footer malformed.")
                     st.stop()
-                # 6) Reassemble with clean LF newlines and ensure trailing newline
                 pk = "\n".join(lines) + "\n"
                 firebase_creds["private_key"] = pk
-            
-                # --- Sanity check required fields ---
+
                 required = [
-                    "type","project_id","private_key_id","private_key",
-                    "client_email","client_id","auth_uri","token_uri"
+                    "type", "project_id", "private_key_id", "private_key",
+                    "client_email", "client_id", "auth_uri", "token_uri"
                 ]
                 missing = [k for k in required if not firebase_creds.get(k)]
                 if missing:
                     st.error(f"❌ Missing required keys in Firebase secrets: {missing}")
-                    st.session_state.firestore_manager = None
                     st.stop()
-            
-                # --- Build credentials without writing a temp file ---
-                from google.oauth2 import service_account
+
                 creds = service_account.Credentials.from_service_account_info(firebase_creds)
-            
-                db = firestore.Client(credentials=creds, project=firebase_creds["project_id"])
-                storage_client = storage.Client(credentials=creds, project=firebase_creds["project_id"])
-            
-                manager = ProjectFirestoreManager()
-                manager.db = db
-                manager.storage_client = storage_client
-                # Optional: pick up bucket from secrets
-                manager.bucket_name = firebase_creds.get("bucket_name", manager.bucket_name)
-            
-                st.session_state.firestore_manager = manager
+                st.session_state.firestore_manager = ProjectFirestoreManager(
+                    creds=creds,
+                    project_id=firebase_creds["project_id"],
+                    bucket_name=firebase_creds.get("bucket_name")
+                )
                 st.success("✅ Firestore initialized with Streamlit secrets")
-    
             else:
                 st.warning("⚠️ Firebase credentials not configured.")
-                st.info("To fix this:")
-                st.info("1. Go to your Streamlit app dashboard")
-                st.info("2. Click on your app → Settings → Secrets")
-                st.info("3. Add your Firebase credentials in TOML format")
-                st.code('''
-[firebase]
-type = "service_account"
-project_id = "product-grid-and-images"
-private_key_id = "1787c7aa8c41011ab48cf3abeec5a77b79780495..."  
-private_key = """-----BEGIN PRIVATE KEY-----
-nMIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQDhEd9wmYg9dwrG\npkSNUquonUwfauEM3fIoMIUQ0/7cxiDmNCQ1o6hM/nSliyeEk/9btxp/ThHm6vN+\nPXIvhD8JyVC5HJiSvvbdcTh2gN1hUR1rzoRtiswSPNidzXTLDCBKqIEsDwmNdpRZ\nH9rGLvow45ijA0HgKRmX7PZ9oHcudlhvxnamxJandHTIl1h6pHhQMzRj896HJ3Sk\ndrqkAtfXNGgY+NgGmG90lFdLC4tiJSzAF7XMQ3sbiMMUoeedFItFDJciO3Trrzl0\nPJo0foMdLx7bz86GMiiQ8D1/k3n1rUKB5WPdQ9Ahqgk94w7bRShBjWyAwDSg/R7c\n61i+SKHJAgMBAAECggEABX4dizaN/P0Em+43FlFWC9yB3PLraNhaRmmPt8ZKrhne\nN+v+FbqHmxBrKZaUqW9AsDzu1jxCItXpSROID7mNHcimUgws+4jSRrtyfq7cqDk1\n6/l7YR595jSKr0gyMVnbiGLmGxyHVcbW7jlhKgy/sZV+Vj0YPJeYLq1bYxu5SN6S\nBjbo4xx3/eLerWuGbWJcnzSFJLEHyoVWBPzuY1D57jRU0oCa4NK339IBVUKBqLkL\n5uhigFIfl3/lhLbgEmONmWGvT9HwytYLwQ5wPrhJ2JFIl4RQb8p5gFdvGqWs1lTv\nRuqzhgqHlmgSFAC2AHchZmrBKq5LYK7KXAHjulg5AQKBgQD6aSBy/P9ra1Q7QZ/t\nbsq8s4fbeYgRYymo52sqFxIk3TxbSHPfcMGyj/vD/VA3mhN/FgKcZdRxXbiQW4Ku\n6q7BLVeCw9nrAxNoI8REJWZQGN6utqKIDUhE+F52spvEDgjK0c5X1Aa7irUwTYJ2\niQU9DhZnbiccO5pOmm+IxJZ2yQKBgQDmF/Igtg7cd6Ga5hx6IG6riPV7A+IcPkgE\ntXhY1EUSlbpXeGWJsYjBfRMoo7sj4ti8dR2oORiZKGWS18p7imwIpcHkxPDREniM\nprFj5ic28QGFkMYfVxg4ayRczmdL8T4hUWBinHKUq3/IvavX+lqrtWkzdgsHyw8N\n1gqcTDdTAQKBgHyJ4DuQHC/+dyvpXXKmkWn8F+tNrCCJouSAA8oxIzL2XNhBVm+g\nEpWOCnbU+xpMJLol5jKGanvfUrVo7bu0uCkXNdixMyYwp2w5rZj+yL25QLa/2mGz\nyWeT5tc9yT5ehHzqj6caqiaHu8lEI0h0qQhOg1H5dLYT5pCFOkdZDkQRAoGAeDA/\n6LhQkPbocloKu/xe8rkqySQhIvGhetwzzeqrXebaHECmgUM8FR25OTw1T6x53A8s\n+6c/YxlH3WlcuiV3Axlaa5430G3ejFGyTWV2TGudiOAzrUE4RJgquVOTf4a3Fn5E\nY54m9+ORbxEsRzfdzt2G4zugzWRTK74HctcY+wECgYEA3DuJqwmigCk6LPqjxSun\nQ1oHefToWlP8hc03McjMiiEYCPoTnHDDkx0ICvfJbpOdIMWMdxXshzxoYFmPJu5e\nNVnU6Rof+GgyXoLNHpqNRwdkXbUauERDoAAnmyn/Soem1o/HLd7NgphK0zB0EXjF\nw0zPmgMUd7yMUTYiRx3U6mk=
+                st.stop()
 
------END PRIVATE KEY-----"""  # Use triple quotes for multi-line!
-client_email = "firebase-adminsdk-fbsvc@product-grid-and-images.iam.gserviceaccount.com"  # Copy from JSON
-client_id = "102035741433170735335"  # Copy from JSON
-auth_uri = "https://accounts.google.com/o/oauth2/auth"
-token_uri = "https://oauth2.googleapis.com/token"
-auth_provider_x509_cert_url = "https://www.googleapis.com/oauth2/v1/certs"
-client_x509_cert_url = "https://www.googleapis.com/robot/v1/metadata/x509/firebase-adminsdk-fbsvc%40product-grid-and-images.iam.gserviceaccount.com"  # Copy from JSON
-bucket_name = "product-grid-and-images.appspot.com"
-                ''')
-                st.session_state.firestore_manager = None
-                
         except Exception as e:
             st.error(f"❌ Failed to initialize Firebase: {str(e)}")
-            st.info("Full error details for debugging:")
             st.exception(e)
             st.session_state.firestore_manager = None
-    
+
     return st.session_state.firestore_manager
 
 
+# ---------------- HELPERS ----------------
+
 def save_current_project_to_cloud():
-    """Add this function to save current project to Firestore."""
     if st.session_state.current_project and st.session_state.firestore_manager:
         project = st.session_state.projects[st.session_state.current_project]
         success = st.session_state.firestore_manager.save_project(
-            st.session_state.current_project,
-            project
+            st.session_state.current_project, project
         )
         if success:
             st.success("☁️ Project saved to cloud!")
@@ -385,88 +257,24 @@ def save_current_project_to_cloud():
 
 
 def load_projects_from_cloud():
-    """Load all user projects from Firestore on app startup."""
     if st.session_state.firestore_manager:
         user_id = st.session_state.get('user_id', 'anonymous')
-        project_summaries = st.session_state.firestore_manager.list_user_projects(user_id)
-        
-        # Load full data for each project
+        summaries = st.session_state.firestore_manager.list_user_projects(user_id)
         loaded_count = 0
-        for summary in project_summaries:
+        for summary in summaries:
             if summary['id'] not in st.session_state.projects:
                 project_data = st.session_state.firestore_manager.load_project(summary['id'])
                 if project_data:
                     st.session_state.projects[summary['id']] = project_data
                     loaded_count += 1
-        
         if loaded_count > 0:
             st.success(f"☁️ Loaded {loaded_count} project(s) from cloud")
-        
         return loaded_count
     return 0
 
 
 def get_or_create_user_id():
-    """
-    Simple user identification for separating projects.
-    In production, you'd want proper authentication.
-    """
     if 'user_id' not in st.session_state:
-        # Generate a unique user ID
         st.session_state.user_id = str(uuid.uuid4())
     return st.session_state.user_id
 
-
-# Test function to verify Firebase connection
-def test_firebase_connection():
-    """
-    Test function to verify Firebase is properly configured.
-    Run this to check your setup.
-    """
-    try:
-        manager = ProjectFirestoreManager('serviceAccount.json')
-        
-        # Create test project
-        test_id = str(uuid.uuid4())
-        test_project = {
-            'id': test_id,
-            'name': 'Test Project',
-            'description': 'Testing Firebase connection',
-            'created_date': datetime.now().isoformat(),
-            'last_modified': datetime.now().isoformat(),
-            'products_data': [],
-            'attributes': [],
-            'distributions': [],
-            'filter_options': {},
-            'pending_changes': {},
-            'uploaded_images': {},
-            'excel_filename': None
-        }
-        
-        # Try to save
-        if manager.save_project(test_id, test_project):
-            print("✅ Firebase save successful!")
-            
-            # Try to load it back
-            loaded = manager.load_project(test_id)
-            if loaded:
-                print("✅ Firebase load successful!")
-                
-                # Clean up - delete test
-                if manager.delete_project(test_id):
-                    print("✅ Firebase delete successful!")
-                    print("\n🎉 All Firebase operations working correctly!")
-                    return True
-        
-        print("❌ Firebase test failed")
-        return False
-        
-    except Exception as e:
-        print(f"❌ Firebase connection error: {str(e)}")
-        return False
-
-
-if __name__ == "__main__":
-    # Run test if this file is executed directly
-    print("Testing Firebase connection...")
-    test_firebase_connection()
