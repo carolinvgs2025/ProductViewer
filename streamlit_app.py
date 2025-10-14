@@ -679,23 +679,35 @@ def show_grid_page():
             key=f"add_images_{project_id}"
         )
 
+# In show_grid_page() in your streamlit_app.py file
+
         if new_images:
-            with st.spinner(f"Uploading {len(new_images)} image(s) and updating project..."):
-                product_lookup = {p['product_id']: p for p in project['products_data']}
+            with st.spinner(f"Matching {len(new_images)} image(s) to products..."):
+                product_lookup = {p['product_id'].lower().strip(): p for p in project['products_data']}
                 
+                updated_count = 0
                 for image_file in new_images:
-                    product_id_from_filename = os.path.splitext(image_file.name)[0]
+                    product_id_from_filename = os.path.splitext(image_file.name)[0].lower().strip()
+                    
                     if product_id_from_filename in product_lookup:
-                        product_lookup[product_id_from_filename]['image_data'] = image_file.getvalue()
+                        # --- THIS IS THE CHANGE ---
+                        # Pass a tuple containing BOTH the new filename and the image bytes.
+                        product_lookup[product_id_from_filename]['image_data'] = (image_file.name, image_file.getvalue())
+                        updated_count += 1
 
-                auto_save_project(project_id)
-                del st.session_state.projects[project_id]
-                ensure_project_loaded(project_id)
+                if updated_count > 0:
+                    st.text(f"Found {updated_count} matches. Uploading to cloud storage...")
+                    auto_save_project(project_id)
+                    
+                    del st.session_state.projects[project_id]
+                    ensure_project_loaded(project_id)
 
-                st.success(f"✅ Successfully added/updated {len(new_images)} image(s). Reloading page.")
-                time.sleep(1)
-                st.rerun()
-                return
+                    st.success(f"✅ Successfully added/updated {updated_count} image(s).")
+                    time.sleep(1)
+                    st.rerun()
+                    return
+                else:
+                    st.warning(f"⚠️ No products found matching the {len(new_images)} uploaded image filename(s). Please check that the filenames (without extension) match the Product IDs.")
 
     # --- (CONTINUED) ---
 
