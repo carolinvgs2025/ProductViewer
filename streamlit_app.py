@@ -621,11 +621,8 @@ def show_grid_page():
 
     # --- FILE REPLACEMENT LOGIC ---
     if new_excel:
-        with st.spinner("Processing new Excel file..."):
-            # --- MODIFIED LINE ---
-            # Pass the image_mappings (which contains URLs) instead of uploaded_images
+        with st.spinner("Parsing new file and saving to cloud... Please wait."):
             products, attrs, dists, filters = load_and_parse_excel(new_excel, project.get('image_mappings', {}))
-            
             project.update({
                 'products_data': products, 'attributes': attrs, 'distributions': dists,
                 'filter_options': filters, 'excel_filename': new_excel.name, 'pending_changes': {}
@@ -636,15 +633,49 @@ def show_grid_page():
                 del st.session_state[view_options_key]
 
             update_project_timestamp(project_id)
-            # This is the slow network operation
             auto_save_project(project_id)
             
             st.success(f"Project updated with '{new_excel.name}'. Reloading...")
             time.sleep(1) 
             st.rerun()
-            # ## THE FIX IS HERE ##
-            # Stop the rest of this script from running unnecessarily.
             return
+
+    # --- (NEW) ADD/REPLACE IMAGES SECTION ---
+    with st.container(border=True):
+        st.subheader("🖼️ Add / Replace Images")
+        new_images = st.file_uploader(
+            "Upload new images. Filenames must match Product IDs (e.g., '123.png'). Existing images will be replaced.",
+            type=['png', 'jpg', 'jpeg'],
+            accept_multiple_files=True,
+            key=f"add_images_{project_id}"
+        )
+
+        if new_images:
+            with st.spinner(f"Uploading {len(new_images)} image(s)..."):
+                # Create a fast lookup for products by their ID
+                product_lookup = {p['product_id']: p for p in project['products_data']}
+                
+                # Inject the raw image bytes into the products that need updating
+                for image_file in new_images:
+                    product_id_from_filename = os.path.splitext(image_file.name)[0]
+                    if product_id_from_filename in product_lookup:
+                        # This 'image_data' key is what firestore_manager looks for
+                        product_lookup[product_id_from_filename]['image_data'] = image_file.getvalue()
+
+                # Call the existing save function. It will find the products with new
+                # 'image_data' and upload them, preserving all old image mappings.
+                auto_save_project(project_id)
+
+                # IMPORTANT: We must now reload the project from the cloud to get the
+                # new URLs and clear the raw bytes from our session state.
+                del st.session_state.projects[project_id]
+                ensure_project_loaded(project_id)
+
+                st.success(f"✅ Successfully added/updated {len(new_images)} image(s).")
+                time.sleep(1)
+                st.rerun()
+
+    # --- (CONTINUED) ---
 
     if 'editing_product' in st.session_state:
         show_edit_modal(st.session_state.editing_product, project)
@@ -662,7 +693,6 @@ def show_grid_page():
         view_options['visible_attributes'] = v_col1.multiselect("Show Attributes:", all_fields, default=view_options['visible_attributes'], format_func=fmt)
         s_opts = ['product_id'] + all_fields
         s_col1, s_col2 = v_col2.columns([2,1])
-        # Add a check to ensure sort_by value exists in options before setting index
         sort_by_index = s_opts.index(view_options['sort_by']) if view_options['sort_by'] in s_opts else 0
         view_options['sort_by'] = s_col1.selectbox("Sort By:", s_opts, index=sort_by_index, format_func=fmt)
         view_options['sort_ascending'] = s_col2.radio("Order:", ["🔼", "🔽"], horizontal=True, index=0 if view_options['sort_ascending'] else 1) == "🔼"
