@@ -127,6 +127,14 @@ MODAL_IMG_CSS_WIDTH = 300
 RETINA_FACTOR = 2
 
 @st.cache_data(show_spinner=False)
+def get_image_html_from_url(product_id: str, image_url: str, css_width: int):
+    """Creates a simple <img> tag from a URL. Caches against the product_id."""
+    if not image_url:
+        return f'<div style="height: {css_width}px; display: flex; align-items: center; justify-content: center; background-color: #f0f2f6; border-radius: 8px;">📷 No image</div>'
+    
+    return f'<img src="{image_url}" style="width:{css_width}px;height:auto;display:block;margin-left:auto;margin-right:auto;image-rendering:auto;" alt="Product Image">'
+
+@st.cache_data(show_spinner=False)
 def _encode_png_uri(im: Image.Image) -> str:
     """Return a PNG data URI for a PIL image."""
     b = BytesIO()
