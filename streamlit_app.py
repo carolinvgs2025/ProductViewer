@@ -777,10 +777,17 @@ def show_grid_page():
         
 # --- MAIN APP ROUTER ---
 def auto_save_project(project_id):
-    """Save current project to Firestore if manager is available."""
+    """
+    Save current project to Firestore and return the result from the save operation.
+    """
     if st.session_state.get('firestore_manager'):
         project = st.session_state.projects[project_id]
-        st.session_state.firestore_manager.save_project(project_id, project)
+        # --- THIS IS THE FIX ---
+        # Capture and return the result from the manager's save function.
+        return st.session_state.firestore_manager.save_project(project_id, project)
+    
+    # Return False if the manager doesn't exist, indicating failure.
+    return False
 
 def main():
     """Main application router."""
