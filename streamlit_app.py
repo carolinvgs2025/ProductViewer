@@ -579,32 +579,36 @@ def show_grid_page():
         if st.button("← Back to Projects", use_container_width=True):
             st.session_state.page = 'projects'; st.rerun()
 
+    # --- FILE REPLACEMENT LOGIC ---
     if new_excel:
-        with st.spinner("Processing new Excel file..."):
+        # Give the user better feedback about what's taking time
+        with st.spinner("Parsing new file and saving to cloud... Please wait."):
             products, attrs, dists, filters = load_and_parse_excel(new_excel, project['uploaded_images'])
             project.update({
                 'products_data': products, 'attributes': attrs, 'distributions': dists,
                 'filter_options': filters, 'excel_filename': new_excel.name, 'pending_changes': {}
             })
-
-            # ## THE FIX IS HERE ##
-            # Reset the view options to prevent errors from stale attribute names.
+            
             view_options_key = f'view_options_{project_id}'
             if view_options_key in st.session_state:
                 del st.session_state[view_options_key]
-            # ## END FIX ##
 
             update_project_timestamp(project_id)
+            # This is the slow network operation
             auto_save_project(project_id)
-            st.success(f"Project updated with '{new_excel.name}'.")
-            time.sleep(1); st.rerun()
+            
+            st.success(f"Project updated with '{new_excel.name}'. Reloading...")
+            time.sleep(1) 
+            st.rerun()
+            # ## THE FIX IS HERE ##
+            # Stop the rest of this script from running unnecessarily.
+            return
 
     if 'editing_product' in st.session_state:
         show_edit_modal(st.session_state.editing_product, project)
 
     # --- VIEW/SORT CONTROLS & SIDEBAR FILTERS ---
     with st.container(border=True):
-        # This 'if' block will now re-run correctly after a file update.
         if f'view_options_{project_id}' not in st.session_state:
             st.session_state[f'view_options_{project_id}'] = {'visible_attributes': ['Description', 'Price'] + project['attributes'], 'sort_by': 'product_id', 'sort_ascending': True}
         view_options = st.session_state[f'view_options_{project_id}']
@@ -616,7 +620,9 @@ def show_grid_page():
         view_options['visible_attributes'] = v_col1.multiselect("Show Attributes:", all_fields, default=view_options['visible_attributes'], format_func=fmt)
         s_opts = ['product_id'] + all_fields
         s_col1, s_col2 = v_col2.columns([2,1])
-        view_options['sort_by'] = s_col1.selectbox("Sort By:", s_opts, index=s_opts.index(view_options['sort_by']) if view_options['sort_by'] in s_opts else 0, format_func=fmt)
+        # Add a check to ensure sort_by value exists in options before setting index
+        sort_by_index = s_opts.index(view_options['sort_by']) if view_options['sort_by'] in s_opts else 0
+        view_options['sort_by'] = s_col1.selectbox("Sort By:", s_opts, index=sort_by_index, format_func=fmt)
         view_options['sort_ascending'] = s_col2.radio("Order:", ["🔼", "🔽"], horizontal=True, index=0 if view_options['sort_ascending'] else 1) == "🔼"
 
     with st.sidebar:
