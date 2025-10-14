@@ -213,65 +213,55 @@ class ProjectFirestoreManager:
             self._saving_in_progress = False
 
     def load_project(self, project_id: str) -> Optional[Dict]:
-        """Load a project (and fetch images back into memory). Supports legacy schemas."""
+        """
+        OPTIMIZED: Load a project WITHOUT fetching image bytes into server memory.
+        This version populates the 'image_url' field in each product from the
+        stored mappings, making the initial load extremely fast.
+        """
         try:
             doc = self.db.collection(self.collection_name).document(project_id).get()
             if not doc.exists:
                 return None
             data = doc.to_dict() or {}
 
-            # Rehydrate images (support both legacy string URLs and new dicts)
-            uploaded_images: Dict[str, bytes] = {}
+            # Create a simple lookup map of product_id -> public_url
+            # This handles the complex legacy logic once, efficiently.
+            url_lookup: Dict[str, str] = {}
             img_map = data.get("image_mappings", {}) or {}
 
-            normalized_map: Dict[str, Dict[str, str]] = {}
-
-            for product_id, meta in img_map.items():
+            for p_id, meta in img_map.items():
+                public_url = None
                 if isinstance(meta, dict):
-                    blob_path = meta.get("blob_path")
                     public_url = meta.get("public_url")
-                    if not blob_path and public_url:
-                        blob_path = _blob_path_from_url(public_url, self.bucket_name)
-                elif isinstance(meta, str):
-                    # Legacy: value is a URL string
+                elif isinstance(meta, str):  # Legacy support for string URLs
                     public_url = meta
-                    blob_path = _blob_path_from_url(public_url, self.bucket_name)
-                else:
-                    blob_path = None
-                    public_url = None
-
-                if blob_path:
-                    img_bytes = self._download_blob_bytes(blob_path)
-                    if img_bytes:
-                        uploaded_images[f"{product_id}.png"] = img_bytes
-                        normalized_map[product_id] = {"blob_path": blob_path, "public_url": public_url or ""}
+                
+                if public_url:
+                    url_lookup[p_id] = public_url
 
             # Also support ultra-legacy case where each product only had "image_url"
-            if not normalized_map:
+            if not url_lookup:
                 for p in data.get("products_data", []):
                     url = p.get("image_url")
                     if isinstance(url, str):
-                        blob_path = _blob_path_from_url(url, self.bucket_name)
-                        if blob_path:
-                            img_bytes = self._download_blob_bytes(blob_path)
-                            if img_bytes:
-                                pid = p.get("product_id", "unnamed")
-                                uploaded_images[f"{pid}.png"] = img_bytes
-                                normalized_map[pid] = {"blob_path": blob_path, "public_url": url}
-
-            # Put image_data back into products_data (for rendering)
+                        pid = p.get("product_id")
+                        if pid:
+                            url_lookup[pid] = url
+            
+            # Now, iterate through products and add the final URL
             for p in data.get("products_data", []):
                 pid = p.get("product_id")
-                if pid:
-                    buf = uploaded_images.get(f"{pid}.png")
-                    if buf:
-                        p["image_data"] = buf
+                if pid and pid in url_lookup:
+                    p["image_url"] = url_lookup[pid]
+                else:
+                    p["image_url"] = None  # Ensure the key exists
+                
+                # IMPORTANT: Ensure old byte data is not present
+                p.pop("image_data", None)
 
-            # Replace with normalized map so any subsequent save writes the new shape.
-            if normalized_map:
-                data["image_mappings"] = normalized_map
-
-            data["uploaded_images"] = uploaded_images
+            # Clean up the main data object; we don't need to pass raw image bytes anymore
+            data.pop("uploaded_images", None)
+            
             return data
 
         except Exception as e:
