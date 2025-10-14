@@ -479,6 +479,7 @@ def show_projects_page():
                         st.session_state.current_project = s['id']
                         st.session_state.page = 'grid'
                         st.rerun()
+                        return
                     else: st.error("Could not load project.")
 
                 if col3.button("🗑️", key=f"delete_{s['id']}", use_container_width=True):
