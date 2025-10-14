@@ -228,14 +228,23 @@ def create_image_lookup(uploaded_images: dict) -> dict:
         for filename, file_data in uploaded_images.items()
     }
 
-def load_and_parse_excel(uploaded_file, uploaded_images):
-    """More robustly parse an uploaded Excel file and return structured data."""
+def load_and_parse_excel(uploaded_file, image_url_mappings):
+    """
+    More robustly parse an uploaded Excel file and return structured data,
+    mapping products to their IMAGE URLs instead of raw bytes.
+    """
     if uploaded_file is None:
         return [], [], [], {}
 
-    # --- OPTIMIZATION: Create the lookup dictionary ONCE ---
-    image_lookup = create_image_lookup(uploaded_images)
-
+    # --- OPTIMIZATION: Create the URL lookup dictionary ONCE ---
+    # The keys are product IDs, and the values are the image URLs.
+    url_lookup = {}
+    for product_id, meta in image_url_mappings.items():
+        if isinstance(meta, dict) and meta.get("public_url"):
+            url_lookup[product_id.lower()] = meta["public_url"]
+        elif isinstance(meta, str): # Legacy support
+            url_lookup[product_id.lower()] = meta
+    
     try:
         df = pd.read_excel(uploaded_file)
         df.columns = [str(c).strip() for c in df.columns]
@@ -262,14 +271,16 @@ def load_and_parse_excel(uploaded_file, uploaded_images):
             except (ValueError, TypeError):
                 price_str = "0.00"
             
-            # --- OPTIMIZATION: Use the fast dictionary lookup ---
-            image_data = image_lookup.get(product_id.lower())
+            # --- OPTIMIZATION: Use the fast dictionary lookup to get the URL ---
+            image_url = url_lookup.get(product_id.lower())
             
             attr_data = {a: str(row[a]).strip() for a in attributes}
             dist_data = {d: "X" in str(row[d]).upper() for d in distributions}
             
             products.append({
-                "original_index": idx, "product_id": product_id, "image_data": image_data,
+                "original_index": idx, "product_id": product_id, 
+                "image_data": None, # We no longer use raw bytes here
+                "image_url": image_url, # We now use the URL
                 "description": description, "original_description": description,
                 "price": price_str, "original_price": price_str,
                 "attributes": attr_data, "original_attributes": attr_data.copy(),
@@ -282,6 +293,7 @@ def load_and_parse_excel(uploaded_file, uploaded_images):
     except Exception as e:
         st.error(f"❌ Failed to parse the Excel file. Please check its format. Error: {e}")
         return [], [], [], {}
+        
         
 def apply_filters(products, attribute_filters, distribution_filters):
     """Apply filters to products and return filtered list."""
