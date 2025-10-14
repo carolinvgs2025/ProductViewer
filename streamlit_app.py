@@ -628,69 +628,45 @@ def show_grid_page():
     if page_state_key not in st.session_state:
         st.session_state[page_state_key] = 1
 
-    # <<< ALL OF THESE HELPER FUNCTIONS MUST BE INDENTED INSIDE show_grid_page >>>
-    
-    # 1. DEFINE CALLBACK FUNCTIONS FOR THE BUTTONS
+    # --- HELPER FUNCTIONS (Indented inside show_grid_page) ---
     def increment_page():
         st.session_state[page_state_key] += 1
 
     def decrement_page():
         st.session_state[page_state_key] -= 1
 
-    # 2. DEFINE THE REUSABLE PAGINATION FUNCTION
-    def render_pagination_controls(total_pages, location):
+    def render_pagination_controls(total_pages):
         current_page = st.session_state[page_state_key]
         st.write("---")
         p_col1, p_col2, p_col3 = st.columns([1, 2, 1])
-
         with p_col1:
-            st.button(
-                "⬅️ Previous", 
-                on_click=decrement_page, 
-                disabled=(current_page <= 1),
-                key=f"prev_{location}"
-            )
-
+            st.button("⬅️ Previous", on_click=decrement_page, disabled=(current_page <= 1), key="prev_top")
         with p_col2:
-            st.selectbox(
-                f"Page {current_page} of {total_pages}",
-                options=range(1, total_pages + 1),
-                key=page_state_key, 
-                label_visibility="collapsed"
-            )
-            
+            st.selectbox(f"Page {current_page} of {total_pages}", options=range(1, total_pages + 1), key=page_state_key, label_visibility="collapsed")
         with p_col3:
-            st.button(
-                "Next ➡️", 
-                on_click=increment_page, 
-                disabled=(current_page >= total_pages),
-                key=f"next_{location}"
-            )
+            st.button("Next ➡️", on_click=increment_page, disabled=(current_page >= total_pages), key="next_top")
         st.write("---")
 
-    # --- MAIN LOGIC FOR THE PAGE STARTS HERE ---
-
-    # Header with project info and navigation
+    # --- MAIN PAGE LOGIC ---
+    # Header
     col1, col2 = st.columns([3, 1])
     with col1:
         st.title(f"📊 {project['name']}")
         if project['description']:
             st.write(project['description'])
-    
     with col2:
         if st.button("← Back to Projects"):
             st.session_state.page = 'projects'
             if page_state_key in st.session_state:
                 del st.session_state[page_state_key]
             st.rerun()
-    
-    # Show edit modal if editing
+
+    # Edit Modal
     if 'editing_product' in st.session_state:
         show_edit_modal(st.session_state.editing_product, project)
     
-    # View and Sort Controls
+    # View and Sort Controls...
     with st.container(border=True):
-        # ... (all your view and sort code remains here) ...
         if f'view_options_{project_id}' not in st.session_state:
             st.session_state[f'view_options_{project_id}'] = {
                 'visible_attributes': ['Description', 'Price'] + project['attributes'],
@@ -716,10 +692,9 @@ def show_grid_page():
             view_options['sort_ascending'] = (sort_direction == "🔼 Asc")
 
     st.markdown("---")
-
-    # Sidebar Filters
+    
+    # Sidebar Filters...
     with st.sidebar:
-        # ... (all your filter code remains here) ...
         st.header("🔍 Filters")
         attribute_filters = {}
         for attr in project['attributes']:
@@ -733,10 +708,9 @@ def show_grid_page():
             distribution_filters = st.multiselect("Available at", dist_options, default=['All'], key=f"filter_distribution_{project['id']}")
         else:
             distribution_filters = ['All']
-    
-    # Filter and Sort Products
+
+    # Filter and Sort Logic...
     filtered_products = apply_filters(project['products_data'], attribute_filters, distribution_filters)
-    # ... (all your sorting logic remains here) ...
     sort_by = view_options['sort_by']
     is_ascending = view_options['sort_ascending']
     def get_sort_key(product):
@@ -752,18 +726,19 @@ def show_grid_page():
     
     st.markdown(f"### Showing {len(sorted_products)} of {len(project['products_data'])} products")
 
-    # Pagination Logic and Rendering
+    # --- RENDER THE PAGE ---
     total_products = len(sorted_products)
     total_pages = max(1, (total_products + PRODUCTS_PER_PAGE - 1) // PRODUCTS_PER_PAGE)
-    
     current_page = st.session_state[page_state_key]
     if current_page > total_pages:
         st.session_state[page_state_key] = total_pages
         current_page = total_pages
     
+    # 1. Render Top Controls
     if total_pages > 1:
-        render_pagination_controls(total_pages, 'top')
+        render_pagination_controls(total_pages)
         
+    # 2. Slice and Display Products
     start_index = (current_page - 1) * PRODUCTS_PER_PAGE
     end_index = start_index + PRODUCTS_PER_PAGE
     products_to_display = sorted_products[start_index:end_index]
@@ -777,9 +752,7 @@ def show_grid_page():
                     display_product_card(product, j, project, view_options['visible_attributes'])
     else:
         st.info("No products match the current filters.")
-    
-    if total_pages > 1:
-        render_pagination_controls(total_pages, 'bottom')
+
 
 
 def auto_save_project(project_id):
