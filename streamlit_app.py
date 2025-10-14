@@ -332,37 +332,44 @@ def create_download_excel(project):
 
 # --- UI DISPLAY FUNCTIONS ---
 def display_product_card(product, project, visible_attributes):
-    """Display a single product card using the high-performance image cache."""
+    """
+    Display a single product card using the high-performance image URL.
+    This function no longer processes raw image bytes, making it much faster.
+    """
     with st.container():
         st.markdown('<div class="product-card">', unsafe_allow_html=True)
         
-        # Use the high-performance caching function for images
-        image_html = get_cached_product_image_html(
+        # --- OPTIMIZATION: Use the image URL directly ---
+        # This calls the simple function that just creates an <img> tag from a URL.
+        # The user's browser handles the loading, not your Streamlit app.
+        image_html = get_image_html_from_url(
             product_id=product["product_id"], 
-            image_bytes=product["image_data"], 
+            image_url=product.get("image_url"), # Use .get() for safety
             css_width=CARD_IMG_CSS_WIDTH
         )
         st.markdown(image_html, unsafe_allow_html=True)
         
+        # Build the text content for the card
         card_content = ""
         if "Description" in visible_attributes:
             desc_class = "changed-attribute" if product["description"] != product["original_description"] else ""
             card_content += f'<p class="{desc_class}"><strong>{product["description"]}</strong></p>'
         
-        if "Price" in visible_attributes and product["price"]:
+        if "Price" in visible_attributes and product.get("price"):
             price_class = "changed-attribute" if product["price"] != product["original_price"] else ""
             card_content += f'<p class="{price_class}">Price: ${product["price"]}</p>'
         
-        for attr in project['attributes']:
+        for attr in project.get('attributes', []):
             if attr in visible_attributes:
-                current_val = product["attributes"][attr]
-                original_val = product["original_attributes"][attr]
+                current_val = product["attributes"].get(attr, "N/A")
+                original_val = product["original_attributes"].get(attr, "N/A")
                 attr_class = "changed-attribute" if current_val != original_val else ""
                 clean_attr = attr.replace('ATT ', '')
                 card_content += f'<small class="{attr_class}"><strong>{clean_attr}:</strong> {current_val}</small><br>'
         
         st.markdown(card_content, unsafe_allow_html=True)
 
+        # The edit button remains at the bottom
         if st.button(f"Edit Product", key=f"edit_{product['original_index']}_{project['id']}", use_container_width=True):
             st.session_state.editing_product = product
             st.rerun()
@@ -370,12 +377,12 @@ def display_product_card(product, project, visible_attributes):
         st.markdown('</div>', unsafe_allow_html=True)
 
 def show_edit_modal(product, project):
-    """Show edit modal for a product."""
     @st.dialog(f"Edit Product: {product['product_id']}")
     def edit_product_dialog():
-        if product["image_data"]:
-            html = build_img_srcset(product["image_data"], css_width=400)
-            st.markdown(f'<div style="text-align: center; margin-bottom: 20px;">{html}</div>', unsafe_allow_html=True)
+        # --- MODIFIED BLOCK ---
+        if product.get("image_url"):
+            # Use the URL directly in a simple img tag
+            st.markdown(f'<div style="text-align: center; margin-bottom: 20px;"><img src="{product["image_url"]}" style="width:{MODAL_IMG_CSS_WIDTH}px; height:auto;"></div>', unsafe_allow_html=True)
         
         col1, col2 = st.columns(2)
         new_description = col1.text_input("Description", value=product["description"])
@@ -581,9 +588,11 @@ def show_grid_page():
 
     # --- FILE REPLACEMENT LOGIC ---
     if new_excel:
-        # Give the user better feedback about what's taking time
-        with st.spinner("Parsing new file and saving to cloud... Please wait."):
-            products, attrs, dists, filters = load_and_parse_excel(new_excel, project['uploaded_images'])
+        with st.spinner("Processing new Excel file..."):
+            # --- MODIFIED LINE ---
+            # Pass the image_mappings (which contains URLs) instead of uploaded_images
+            products, attrs, dists, filters = load_and_parse_excel(new_excel, project.get('image_mappings', {}))
+            
             project.update({
                 'products_data': products, 'attributes': attrs, 'distributions': dists,
                 'filter_options': filters, 'excel_filename': new_excel.name, 'pending_changes': {}
