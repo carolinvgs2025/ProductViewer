@@ -650,8 +650,8 @@ def show_grid_page():
     # --- MAIN PAGE LOGIC ---
 
     # ## MODIFICATION START ##
-    # Updated header with a file uploader to replace the Excel grid.
-    header_col1, header_col2, header_col3 = st.columns([2, 2, 1])
+    # Updated header to a 4-column layout to include the download button.
+    header_col1, header_col2, header_col3, header_col4 = st.columns([4, 3, 2, 2])
     
     with header_col1:
         st.title(f"📊 {project['name']}")
@@ -659,49 +659,52 @@ def show_grid_page():
             st.write(project['description'])
 
     with header_col2:
-        # Add some vertical space to better align the uploader with the title.
         st.markdown("<div><br></div>", unsafe_allow_html=True) 
         new_excel_file = st.file_uploader(
             "Replace Source Excel Grid",
             type=['xlsx', 'xls'],
             key=f"replace_excel_{project_id}",
-            label_visibility="collapsed" # Hide the label to keep it clean
+            label_visibility="collapsed"
         )
         
-        # If a new file is uploaded, process it.
         if new_excel_file:
             with st.spinner("Processing new Excel file..."):
-                # Reparse the project data using the new file but existing images.
                 products, attributes, distributions, filter_options = load_and_parse_excel(
                     new_excel_file,
-                    project['uploaded_images'] # Reuse the images already in the project
+                    project['uploaded_images']
                 )
-                
-                # Update the project in session state with the new data.
                 project['products_data'] = products
                 project['attributes'] = attributes
                 project['distributions'] = distributions
                 project['filter_options'] = filter_options
                 project['excel_filename'] = new_excel_file.name
-                project['pending_changes'] = {} # Reset any pending changes.
-                
-                # Update timestamp and save automatically.
+                project['pending_changes'] = {}
                 update_project_timestamp(project_id)
                 auto_save_project(project_id)
-                
                 st.success(f"✅ Project updated with '{new_excel_file.name}'.")
                 st.rerun()
 
     with header_col3:
-        # Add some vertical space for alignment.
         st.markdown("<div><br></div>", unsafe_allow_html=True)
-        if st.button("← Back to Projects"):
+        # Prepare data for the download button.
+        excel_data = create_download_excel(project)
+        if excel_data:
+            st.download_button(
+                label="📥 Download Current Grid",
+                data=excel_data,
+                file_name=f"{project['name']}_updated_{datetime.now().strftime('%Y%m%d')}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                use_container_width=True # Make button fill the column
+            )
+
+    with header_col4:
+        st.markdown("<div><br></div>", unsafe_allow_html=True)
+        if st.button("← Back to Projects", use_container_width=True):
             st.session_state.page = 'projects'
             if page_state_key in st.session_state:
                 del st.session_state[page_state_key]
             st.rerun()
     # ## MODIFICATION END ##
-
 
     # Edit Modal
     if 'editing_product' in st.session_state:
@@ -776,11 +779,9 @@ def show_grid_page():
         st.session_state[page_state_key] = total_pages
         current_page = total_pages
     
-    # 1. Render Top Controls
     if total_pages > 1:
         render_pagination_controls(total_pages)
         
-    # 2. Slice and Display Products
     start_index = (current_page - 1) * PRODUCTS_PER_PAGE
     end_index = start_index + PRODUCTS_PER_PAGE
     products_to_display = sorted_products[start_index:end_index]
