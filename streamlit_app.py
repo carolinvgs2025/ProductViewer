@@ -217,10 +217,24 @@ def find_image_for_product(product_id, uploaded_images):
             return file_data
     return None
 
+def create_image_lookup(uploaded_images: dict) -> dict:
+    """
+    Creates a dictionary for instant image lookups.
+    Key: product_id (lowercase string), Value: image_bytes.
+    This is much faster than looping.
+    """
+    return {
+        os.path.splitext(filename)[0].lower(): file_data
+        for filename, file_data in uploaded_images.items()
+    }
+
 def load_and_parse_excel(uploaded_file, uploaded_images):
     """More robustly parse an uploaded Excel file and return structured data."""
     if uploaded_file is None:
         return [], [], [], {}
+
+    # --- OPTIMIZATION: Create the lookup dictionary ONCE ---
+    image_lookup = create_image_lookup(uploaded_images)
 
     try:
         df = pd.read_excel(uploaded_file)
@@ -247,8 +261,10 @@ def load_and_parse_excel(uploaded_file, uploaded_images):
                 price_str = f"{price_val:.2f}"
             except (ValueError, TypeError):
                 price_str = "0.00"
-
-            image_data = find_image_for_product(product_id, uploaded_images)
+            
+            # --- OPTIMIZATION: Use the fast dictionary lookup ---
+            image_data = image_lookup.get(product_id.lower())
+            
             attr_data = {a: str(row[a]).strip() for a in attributes}
             dist_data = {d: "X" in str(row[d]).upper() for d in distributions}
             
@@ -266,7 +282,7 @@ def load_and_parse_excel(uploaded_file, uploaded_images):
     except Exception as e:
         st.error(f"❌ Failed to parse the Excel file. Please check its format. Error: {e}")
         return [], [], [], {}
-
+        
 def apply_filters(products, attribute_filters, distribution_filters):
     """Apply filters to products and return filtered list."""
     if not products:
