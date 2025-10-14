@@ -538,29 +538,42 @@ def show_create_project_page():
             if not project_name or not uploaded_excel:
                 st.warning("Please provide a project name and an Excel file.")
             else:
-                with st.spinner("Creating project..."):
+                with st.spinner("Creating project and uploading assets..."):
+                    # Get the raw bytes for both images and the Excel file
                     image_dict = {img.name: img.getvalue() for img in uploaded_images}
-                    products, attrs, dists, filters = load_and_parse_excel(uploaded_excel, image_dict)
+                    excel_bytes = uploaded_excel.getvalue()
+
+                    # Your parsing function is now efficient, this is fast
+                    products, attrs, dists, filters = load_and_parse_excel(BytesIO(excel_bytes), image_dict)
                     
                     project_id = create_new_project(project_name, project_description)
                     project = st.session_state.projects[project_id]
                     
+                    # --- MODIFICATION: Prepare data for the smart firestore_manager ---
                     project.update({
-                        'products_data': products, 'attributes': attrs, 'distributions': dists,
-                        'filter_options': filters, 'uploaded_images': image_dict,
+                        'products_data': products,
+                        'attributes': attrs,
+                        'distributions': dists,
+                        'filter_options': filters,
+                        'uploaded_images': image_dict,  # Pass the raw image bytes for the manager to upload
+                        'excel_file_data': excel_bytes, # Pass the raw excel bytes for the manager to upload
                         'excel_filename': uploaded_excel.name
                     })
                     
+                    # Your firestore_manager.save_project will now correctly handle
+                    # uploading these bytes to cloud storage and saving URLs.
                     if st.session_state.get('firestore_manager'):
                         st.session_state.firestore_manager.save_project(project_id, project)
                     
                     st.success(f"✅ Project '{project_name}' created!")
                     st.balloons()
                     time.sleep(1)
+                    
+                    # Now, immediately switch to the grid page
                     st.session_state.current_project = project_id
                     st.session_state.page = 'grid'
                     st.rerun()
-
+                    
 def show_grid_page():
     """Display the product grid for the current project."""
     if not st.session_state.current_project or st.session_state.current_project not in st.session_state.projects:
