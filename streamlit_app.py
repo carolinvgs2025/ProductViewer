@@ -624,56 +624,51 @@ def show_grid_page():
     project_id = project['id']
     
     PRODUCTS_PER_PAGE = 50
-    page_state_key = f'page_number_{project_id}' # <<< Use a variable for the key
+    page_state_key = f'page_number_{project_id}'
     if page_state_key not in st.session_state:
         st.session_state[page_state_key] = 1
 
-    # <<< FIX 1: DEFINE CALLBACK FUNCTIONS FOR THE BUTTONS >>>
-    # These functions will be called BEFORE the script reruns.
+    # <<< ALL OF THESE HELPER FUNCTIONS MUST BE INDENTED INSIDE show_grid_page >>>
+    
+    # 1. DEFINE CALLBACK FUNCTIONS FOR THE BUTTONS
     def increment_page():
         st.session_state[page_state_key] += 1
 
     def decrement_page():
         st.session_state[page_state_key] -= 1
 
-    # <<< FIX 2: CREATE A REUSABLE FUNCTION FOR PAGINATION CONTROLS >>>
-def render_pagination_controls(total_pages, location):
-    # Get the current page from session state for disabling buttons
-    page_state_key = f'page_number_{project_id}' # Assuming project_id is available in the scope
-    current_page = st.session_state[page_state_key]
-    
-    st.write("---")
-    p_col1, p_col2, p_col3 = st.columns([1, 2, 1])
+    # 2. DEFINE THE REUSABLE PAGINATION FUNCTION
+    def render_pagination_controls(total_pages, location):
+        current_page = st.session_state[page_state_key]
+        st.write("---")
+        p_col1, p_col2, p_col3 = st.columns([1, 2, 1])
 
-    with p_col1:
-        st.button(
-            "⬅️ Previous", 
-            on_click=decrement_page, 
-            disabled=(current_page <= 1),
-            # Use the location in the key to make it unique
-            key=f"prev_{location}" 
-        )
+        with p_col1:
+            st.button(
+                "⬅️ Previous", 
+                on_click=decrement_page, 
+                disabled=(current_page <= 1),
+                key=f"prev_{location}"
+            )
 
-    with p_col2:
-        # The selectbox key is fine as is, because we WANT both selectboxes
-        # to control the same state variable.
-        st.selectbox(
-            f"Page {current_page} of {total_pages}",
-            options=range(1, total_pages + 1),
-            key=page_state_key, 
-            label_visibility="collapsed"
-        )
-        
-    with p_col3:
-        st.button(
-            "Next ➡️", 
-            on_click=increment_page, 
-            disabled=(current_page >= total_pages),
-            # Use the location in the key here as well
-            key=f"next_{location}"
-        )
-    st.write("---")
+        with p_col2:
+            st.selectbox(
+                f"Page {current_page} of {total_pages}",
+                options=range(1, total_pages + 1),
+                key=page_state_key, 
+                label_visibility="collapsed"
+            )
+            
+        with p_col3:
+            st.button(
+                "Next ➡️", 
+                on_click=increment_page, 
+                disabled=(current_page >= total_pages),
+                key=f"next_{location}"
+            )
+        st.write("---")
 
+    # --- MAIN LOGIC FOR THE PAGE STARTS HERE ---
 
     # Header with project info and navigation
     col1, col2 = st.columns([3, 1])
@@ -685,7 +680,6 @@ def render_pagination_controls(total_pages, location):
     with col2:
         if st.button("← Back to Projects"):
             st.session_state.page = 'projects'
-            # Clear the page number when leaving the project
             if page_state_key in st.session_state:
                 del st.session_state[page_state_key]
             st.rerun()
@@ -694,10 +688,9 @@ def render_pagination_controls(total_pages, location):
     if 'editing_product' in st.session_state:
         show_edit_modal(st.session_state.editing_product, project)
     
-    # --- VIEW AND SORT CONTROL BAND ---
-    # (This section remains unchanged)
+    # View and Sort Controls
     with st.container(border=True):
-        #... (all your view and sort code remains here) ...
+        # ... (all your view and sort code remains here) ...
         if f'view_options_{project_id}' not in st.session_state:
             st.session_state[f'view_options_{project_id}'] = {
                 'visible_attributes': ['Description', 'Price'] + project['attributes'],
@@ -707,28 +700,26 @@ def render_pagination_controls(total_pages, location):
         view_options = st.session_state[f'view_options_{project_id}']
         all_fields = ['Description', 'Price'] + project['attributes']
         def format_attribute_name(attr_name):
-            if isinstance(attr_name, str):
-                return attr_name.replace('ATT ', '')
+            if isinstance(attr_name, str): return attr_name.replace('ATT ', '')
             return attr_name
         st.subheader("View & Sort Options")
         c1, c2 = st.columns(2)
         with c1:
-            visible_attributes = st.multiselect( "Show/Hide Attributes on Cards:", options=all_fields, default=view_options['visible_attributes'], key=f"visibility_multiselect_{project_id}", format_func=format_attribute_name)
+            visible_attributes = st.multiselect("Show/Hide Attributes on Cards:", options=all_fields, default=view_options['visible_attributes'], key=f"visibility_multiselect_{project_id}", format_func=format_attribute_name)
             view_options['visible_attributes'] = visible_attributes
         with c2:
             sort_options = ['product_id'] + all_fields
             sort_cols = st.columns([2, 1])
-            selected_sort_by = sort_cols[0].selectbox( "Sort Products By:", options=sort_options, index=sort_options.index(view_options['sort_by']) if view_options['sort_by'] in sort_options else 0, key=f"sort_by_{project_id}", format_func=format_attribute_name)
+            selected_sort_by = sort_cols[0].selectbox("Sort Products By:", options=sort_options, index=sort_options.index(view_options['sort_by']) if view_options['sort_by'] in sort_options else 0, key=f"sort_by_{project_id}", format_func=format_attribute_name)
             view_options['sort_by'] = selected_sort_by
-            sort_direction = sort_cols[1].radio( "Direction:", ["🔼 Asc", "🔽 Desc"], index=0 if view_options['sort_ascending'] else 1, key=f"sort_dir_{project_id}", horizontal=True)
+            sort_direction = sort_cols[1].radio("Direction:", ["🔼 Asc", "🔽 Desc"], index=0 if view_options['sort_ascending'] else 1, key=f"sort_dir_{project_id}", horizontal=True)
             view_options['sort_ascending'] = (sort_direction == "🔼 Asc")
 
     st.markdown("---")
 
-    # Sidebar filters
-    # (This section remains unchanged)
+    # Sidebar Filters
     with st.sidebar:
-        #... (all your filter code remains here) ...
+        # ... (all your filter code remains here) ...
         st.header("🔍 Filters")
         attribute_filters = {}
         for attr in project['attributes']:
@@ -742,10 +733,8 @@ def render_pagination_controls(total_pages, location):
             distribution_filters = st.multiselect("Available at", dist_options, default=['All'], key=f"filter_distribution_{project['id']}")
         else:
             distribution_filters = ['All']
-
-    # (Button code unchanged) ...
-
-    # Apply filters and sort
+    
+    # Filter and Sort Products
     filtered_products = apply_filters(project['products_data'], attribute_filters, distribution_filters)
     # ... (all your sorting logic remains here) ...
     sort_by = view_options['sort_by']
@@ -759,12 +748,11 @@ def render_pagination_controls(total_pages, location):
             try: return float(product['price'])
             except (ValueError, TypeError): return 0.0
         else: return product['attributes'].get(sort_by, '').lower()
-
     sorted_products = sorted(filtered_products, key=get_sort_key, reverse=not is_ascending)
     
     st.markdown(f"### Showing {len(sorted_products)} of {len(project['products_data'])} products")
 
-    # --- PAGINATION LOGIC ---
+    # Pagination Logic and Rendering
     total_products = len(sorted_products)
     total_pages = max(1, (total_products + PRODUCTS_PER_PAGE - 1) // PRODUCTS_PER_PAGE)
     
@@ -773,16 +761,13 @@ def render_pagination_controls(total_pages, location):
         st.session_state[page_state_key] = total_pages
         current_page = total_pages
     
-    # 1. RENDER PAGINATION CONTROLS AT THE TOP
     if total_pages > 1:
         render_pagination_controls(total_pages, 'top')
         
-    # 2. SLICE THE PRODUCT LIST FOR THE CURRENT PAGE
     start_index = (current_page - 1) * PRODUCTS_PER_PAGE
     end_index = start_index + PRODUCTS_PER_PAGE
     products_to_display = sorted_products[start_index:end_index]
     
-    # 3. DISPLAY THE PRODUCT GRID
     if products_to_display:
         cols_per_row = 4
         for i in range(0, len(products_to_display), cols_per_row):
@@ -793,9 +778,7 @@ def render_pagination_controls(total_pages, location):
     else:
         st.info("No products match the current filters.")
     
-    # 4. RENDER PAGINATION CONTROLS AT THE BOTTOM
     if total_pages > 1:
-        # This is the corrected and final call for the bottom controls
         render_pagination_controls(total_pages, 'bottom')
 
 
