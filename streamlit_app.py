@@ -648,18 +648,60 @@ def show_grid_page():
         st.write("---")
 
     # --- MAIN PAGE LOGIC ---
-    # Header
-    col1, col2 = st.columns([3, 1])
-    with col1:
+
+    # ## MODIFICATION START ##
+    # Updated header with a file uploader to replace the Excel grid.
+    header_col1, header_col2, header_col3 = st.columns([2, 2, 1])
+    
+    with header_col1:
         st.title(f"📊 {project['name']}")
         if project['description']:
             st.write(project['description'])
-    with col2:
+
+    with header_col2:
+        # Add some vertical space to better align the uploader with the title.
+        st.markdown("<div><br></div>", unsafe_allow_html=True) 
+        new_excel_file = st.file_uploader(
+            "Replace Source Excel Grid",
+            type=['xlsx', 'xls'],
+            key=f"replace_excel_{project_id}",
+            label_visibility="collapsed" # Hide the label to keep it clean
+        )
+        
+        # If a new file is uploaded, process it.
+        if new_excel_file:
+            with st.spinner("Processing new Excel file..."):
+                # Reparse the project data using the new file but existing images.
+                products, attributes, distributions, filter_options = load_and_parse_excel(
+                    new_excel_file,
+                    project['uploaded_images'] # Reuse the images already in the project
+                )
+                
+                # Update the project in session state with the new data.
+                project['products_data'] = products
+                project['attributes'] = attributes
+                project['distributions'] = distributions
+                project['filter_options'] = filter_options
+                project['excel_filename'] = new_excel_file.name
+                project['pending_changes'] = {} # Reset any pending changes.
+                
+                # Update timestamp and save automatically.
+                update_project_timestamp(project_id)
+                auto_save_project(project_id)
+                
+                st.success(f"✅ Project updated with '{new_excel_file.name}'.")
+                st.rerun()
+
+    with header_col3:
+        # Add some vertical space for alignment.
+        st.markdown("<div><br></div>", unsafe_allow_html=True)
         if st.button("← Back to Projects"):
             st.session_state.page = 'projects'
             if page_state_key in st.session_state:
                 del st.session_state[page_state_key]
             st.rerun()
+    # ## MODIFICATION END ##
+
 
     # Edit Modal
     if 'editing_product' in st.session_state:
@@ -752,8 +794,6 @@ def show_grid_page():
                     display_product_card(product, j, project, view_options['visible_attributes'])
     else:
         st.info("No products match the current filters.")
-
-
 
 def auto_save_project(project_id):
     """Save current project to Firestore if manager is available"""
