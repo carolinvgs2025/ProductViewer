@@ -569,6 +569,14 @@ def show_grid_page():
                 'products_data': products, 'attributes': attrs, 'distributions': dists,
                 'filter_options': filters, 'excel_filename': new_excel.name, 'pending_changes': {}
             })
+
+            # ## THE FIX IS HERE ##
+            # Reset the view options to prevent errors from stale attribute names.
+            view_options_key = f'view_options_{project_id}'
+            if view_options_key in st.session_state:
+                del st.session_state[view_options_key]
+            # ## END FIX ##
+
             update_project_timestamp(project_id)
             auto_save_project(project_id)
             st.success(f"Project updated with '{new_excel.name}'.")
@@ -579,6 +587,7 @@ def show_grid_page():
 
     # --- VIEW/SORT CONTROLS & SIDEBAR FILTERS ---
     with st.container(border=True):
+        # This 'if' block will now re-run correctly after a file update.
         if f'view_options_{project_id}' not in st.session_state:
             st.session_state[f'view_options_{project_id}'] = {'visible_attributes': ['Description', 'Price'] + project['attributes'], 'sort_by': 'product_id', 'sort_ascending': True}
         view_options = st.session_state[f'view_options_{project_id}']
@@ -590,7 +599,7 @@ def show_grid_page():
         view_options['visible_attributes'] = v_col1.multiselect("Show Attributes:", all_fields, default=view_options['visible_attributes'], format_func=fmt)
         s_opts = ['product_id'] + all_fields
         s_col1, s_col2 = v_col2.columns([2,1])
-        view_options['sort_by'] = s_col1.selectbox("Sort By:", s_opts, index=s_opts.index(view_options['sort_by']), format_func=fmt)
+        view_options['sort_by'] = s_col1.selectbox("Sort By:", s_opts, index=s_opts.index(view_options['sort_by']) if view_options['sort_by'] in s_opts else 0, format_func=fmt)
         view_options['sort_ascending'] = s_col2.radio("Order:", ["🔼", "🔽"], horizontal=True, index=0 if view_options['sort_ascending'] else 1) == "🔼"
 
     with st.sidebar:
@@ -613,7 +622,7 @@ def show_grid_page():
     st.markdown(f"### Showing {len(sorted_products)} of {len(project['products_data'])} products")
 
     total_pages = max(1, (len(sorted_products) + PRODUCTS_PER_PAGE - 1) // PRODUCTS_PER_PAGE)
-    current_page = st.session_state[page_state_key] = min(st.session_state[page_state_key], total_pages)
+    current_page = st.session_state[page_state_key] = min(st.session_state.get(page_state_key, 1), total_pages)
     
     if total_pages > 1: render_pagination_controls(total_pages)
         
@@ -628,7 +637,7 @@ def show_grid_page():
                     display_product_card(product, project, view_options['visible_attributes'])
     else:
         st.info("No products match the current filters.")
-
+        
 # --- MAIN APP ROUTER ---
 def auto_save_project(project_id):
     """Save current project to Firestore if manager is available."""
