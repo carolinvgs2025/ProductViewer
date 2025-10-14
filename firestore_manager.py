@@ -142,10 +142,13 @@ class ProjectFirestoreManager:
 
 # In firestore_manager.py
 
-    def save_project(self, project_id: str, project_data: Dict) -> bool:
+# In firestore_manager.py
+
+    def save_project(self, project_id: str, project_data: Dict) -> bool | Dict:
         """
         Save a project. If new image data is found, it DELETES the old image
         for that product before uploading the new one.
+        Returns the updated image_mappings dictionary on success, otherwise False.
         """
         if self._saving_in_progress:
             return False
@@ -172,12 +175,9 @@ class ProjectFirestoreManager:
                 pcopy = dict(product)
                 img_info = pcopy.pop("image_data", None)
 
-                # Check if new image data exists for this product
                 if img_info:
-                    # Unpack the tuple: (filename, bytes)
                     if isinstance(img_info, tuple) and len(img_info) == 2:
                         image_name, img_bytes = img_info
-                    # Fallback for old data format (just bytes)
                     elif isinstance(img_info, bytes):
                         img_bytes = img_info
                         image_name = f"{pcopy.get('product_id', 'unnamed')}.png"
@@ -187,7 +187,6 @@ class ProjectFirestoreManager:
                     
                     product_id = pcopy.get("product_id")
 
-                    # --- DELETE OLD IMAGE BEFORE UPLOADING NEW ONE ---
                     if product_id and product_id in image_mappings:
                         old_blob_path = image_mappings[product_id].get("blob_path")
                         if old_blob_path:
@@ -196,12 +195,10 @@ class ProjectFirestoreManager:
                             except Exception as e:
                                 print(f"Could not delete old image {old_blob_path}: {e}")
                     
-                    # --- UPLOAD THE NEW IMAGE ---
                     blob_path = self._image_blob_path(project_id, image_name)
                     content_type = "image/png" if image_name.lower().endswith(".png") else "image/jpeg"
                     public_url = self._upload_bytes(blob_path, img_bytes, content_type)
                     
-                    # Update product and mappings with the NEW URL and blob path
                     pcopy["image_url"] = public_url
                     image_mappings[product_id] = {
                         "blob_path": blob_path,
@@ -213,7 +210,7 @@ class ProjectFirestoreManager:
             firestore_data["products_data"] = products_for_firestore
             firestore_data["image_mappings"] = image_mappings
 
-            # (Excel upload logic remains the same...)
+            # (Excel upload logic remains the same)
             excel_bytes = project_data.get("excel_file_data")
             excel_filename = project_data.get("excel_filename") or "grid.xlsx"
             if excel_bytes:
@@ -223,7 +220,10 @@ class ProjectFirestoreManager:
                 firestore_data["excel_url"] = excel_public_url
 
             self.db.collection(self.collection_name).document(project_id).set(firestore_data)
-            return True
+            
+            # --- THIS IS THE CHANGE ---
+            # Return the complete, updated URL mappings
+            return image_mappings
 
         except Exception as e:
             st.error(f"Error saving project: {str(e)}")
