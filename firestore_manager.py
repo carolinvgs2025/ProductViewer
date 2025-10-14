@@ -144,14 +144,14 @@ class ProjectFirestoreManager:
 
     def save_project(self, project_id: str, project_data: Dict) -> bool:
         """
-        Save a project to Firestore and upload any product images / excel if provided.
+        Save a project. If new image data is found, it DELETES the old image
+        for that product before uploading the new one.
         """
         if self._saving_in_progress:
-            return False  # debounce: skip duplicate saves in this rerun
+            return False
         self._saving_in_progress = True
 
         try:
-            # Build Firestore document
             firestore_data = {
                 "id": project_id,
                 "name": project_data.get("name", ""),
@@ -165,44 +165,63 @@ class ProjectFirestoreManager:
                 "excel_filename": project_data.get("excel_filename"),
             }
 
-            # --- THE FIX IS ON THIS LINE ---
-            # Instead of starting with an empty dictionary, PRESERVE the existing image mappings.
             image_mappings: Dict[str, Dict[str, str]] = project_data.get("image_mappings", {})
-
-            # This loop will now only run if new raw image_data is present (e.g., on first creation)
-            # On subsequent saves (like replacing the grid), it will be skipped, preserving the old mappings.
             products_for_firestore = []
+
             for product in project_data.get("products_data", []):
                 pcopy = dict(product)
-                img_bytes = pcopy.pop("image_data", None)
-                if img_bytes:
-                    image_name = f"{pcopy.get('product_id', 'unnamed')}.png"
+                img_info = pcopy.pop("image_data", None)
+
+                # Check if new image data exists for this product
+                if img_info:
+                    # Unpack the tuple: (filename, bytes)
+                    if isinstance(img_info, tuple) and len(img_info) == 2:
+                        image_name, img_bytes = img_info
+                    # Fallback for old data format (just bytes)
+                    elif isinstance(img_info, bytes):
+                        img_bytes = img_info
+                        image_name = f"{pcopy.get('product_id', 'unnamed')}.png"
+                    else:
+                        products_for_firestore.append(pcopy)
+                        continue
+                    
+                    product_id = pcopy.get("product_id")
+
+                    # --- DELETE OLD IMAGE BEFORE UPLOADING NEW ONE ---
+                    if product_id and product_id in image_mappings:
+                        old_blob_path = image_mappings[product_id].get("blob_path")
+                        if old_blob_path:
+                            try:
+                                self._bucket().blob(old_blob_path).delete()
+                            except Exception as e:
+                                print(f"Could not delete old image {old_blob_path}: {e}")
+                    
+                    # --- UPLOAD THE NEW IMAGE ---
                     blob_path = self._image_blob_path(project_id, image_name)
-                    public_url = self._upload_bytes(blob_path, img_bytes, "image/png")
+                    content_type = "image/png" if image_name.lower().endswith(".png") else "image/jpeg"
+                    public_url = self._upload_bytes(blob_path, img_bytes, content_type)
+                    
+                    # Update product and mappings with the NEW URL and blob path
                     pcopy["image_url"] = public_url
-                    image_mappings[pcopy.get("product_id", image_name)] = {
+                    image_mappings[product_id] = {
                         "blob_path": blob_path,
                         "public_url": public_url,
                     }
+
                 products_for_firestore.append(pcopy)
 
             firestore_data["products_data"] = products_for_firestore
-            firestore_data["image_mappings"] = image_mappings # Now saves the preserved mappings
+            firestore_data["image_mappings"] = image_mappings
 
-            # Upload Excel if present
+            # (Excel upload logic remains the same...)
             excel_bytes = project_data.get("excel_file_data")
             excel_filename = project_data.get("excel_filename") or "grid.xlsx"
             if excel_bytes:
                 excel_blob_path = self._excel_blob_path(project_id, excel_filename)
-                excel_public_url = self._upload_bytes(
-                    excel_blob_path,
-                    excel_bytes,
-                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                )
+                excel_public_url = self._upload_bytes(excel_blob_path, excel_bytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
                 firestore_data["excel_blob_path"] = excel_blob_path
                 firestore_data["excel_url"] = excel_public_url
 
-            # Persist metadata
             self.db.collection(self.collection_name).document(project_id).set(firestore_data)
             return True
 
@@ -211,6 +230,7 @@ class ProjectFirestoreManager:
             return False
         finally:
             self._saving_in_progress = False
+
 
     def load_project(self, project_id: str) -> Optional[Dict]:
         """
