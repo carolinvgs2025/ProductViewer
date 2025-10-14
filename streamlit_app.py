@@ -670,6 +670,9 @@ def show_grid_page():
                     st.warning("All pending changes have been discarded."); time.sleep(1); st.rerun()
 
     # --- (RESTORED) ADD/REPLACE IMAGES SECTION ---
+# In show_grid_page() in your streamlit_app.py file
+
+    # --- (CORRECTED) ADD/REPLACE IMAGES SECTION ---
     with st.container(border=True):
         st.subheader("🖼️ Add / Replace Images")
         new_images = st.file_uploader(
@@ -678,8 +681,6 @@ def show_grid_page():
             accept_multiple_files=True,
             key=f"add_images_{project_id}"
         )
-
-# In show_grid_page() in your streamlit_app.py file
 
         if new_images:
             with st.spinner(f"Matching {len(new_images)} image(s) to products..."):
@@ -690,25 +691,32 @@ def show_grid_page():
                     product_id_from_filename = os.path.splitext(image_file.name)[0].lower().strip()
                     
                     if product_id_from_filename in product_lookup:
-                        # --- THIS IS THE CHANGE ---
-                        # Pass a tuple containing BOTH the new filename and the image bytes.
                         product_lookup[product_id_from_filename]['image_data'] = (image_file.name, image_file.getvalue())
                         updated_count += 1
 
                 if updated_count > 0:
                     st.text(f"Found {updated_count} matches. Uploading to cloud storage...")
-                    auto_save_project(project_id)
                     
-                    del st.session_state.projects[project_id]
-                    ensure_project_loaded(project_id)
+                    # --- THIS IS THE CHANGE ---
+                    # auto_save_project now returns the updated image mappings
+                    updated_mappings = auto_save_project(project_id)
 
-                    st.success(f"✅ Successfully added/updated {updated_count} image(s).")
-                    time.sleep(1)
-                    st.rerun()
-                    return
+                    if updated_mappings:
+                        # Update the local project data with the new URLs before reloading
+                        project['image_mappings'] = updated_mappings
+                        for p_id, p_data in product_lookup.items():
+                            if p_id in updated_mappings and "public_url" in updated_mappings[p_id]:
+                                p_data['image_url'] = updated_mappings[p_id]["public_url"]
+                        
+                        st.success(f"✅ Successfully added/updated {updated_count} image(s).")
+                        time.sleep(1)
+                        st.rerun()
+                        return
+                    else:
+                        st.error("Failed to save the project after uploading images.")
+
                 else:
                     st.warning(f"⚠️ No products found matching the {len(new_images)} uploaded image filename(s). Please check that the filenames (without extension) match the Product IDs.")
-
     # --- (CONTINUED) ---
 
     if 'editing_product' in st.session_state:
