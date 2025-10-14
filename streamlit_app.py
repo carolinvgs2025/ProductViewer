@@ -637,40 +637,42 @@ def show_grid_page():
         st.session_state[page_state_key] -= 1
 
     # <<< FIX 2: CREATE A REUSABLE FUNCTION FOR PAGINATION CONTROLS >>>
-    def render_pagination_controls(total_pages):
-        # Get the current page from session state for disabling buttons
-        current_page = st.session_state[page_state_key]
+def render_pagination_controls(total_pages, location):
+    # Get the current page from session state for disabling buttons
+    page_state_key = f'page_number_{project_id}' # Assuming project_id is available in the scope
+    current_page = st.session_state[page_state_key]
+    
+    st.write("---")
+    p_col1, p_col2, p_col3 = st.columns([1, 2, 1])
+
+    with p_col1:
+        st.button(
+            "⬅️ Previous", 
+            on_click=decrement_page, 
+            disabled=(current_page <= 1),
+            # Use the location in the key to make it unique
+            key=f"prev_{location}" 
+        )
+
+    with p_col2:
+        # The selectbox key is fine as is, because we WANT both selectboxes
+        # to control the same state variable.
+        st.selectbox(
+            f"Page {current_page} of {total_pages}",
+            options=range(1, total_pages + 1),
+            key=page_state_key, 
+            label_visibility="collapsed"
+        )
         
-        st.write("---")
-        p_col1, p_col2, p_col3 = st.columns([1, 2, 1])
-
-        with p_col1:
-            # Use the on_click callback here
-            st.button(
-                "⬅️ Previous", 
-                on_click=decrement_page, 
-                disabled=(current_page <= 1),
-                key=f"prev_{total_pages}" # Add a unique key to prevent conflicts if called twice
-            )
-
-        with p_col2:
-            # The selectbox can keep its key, as it works fine with callbacks
-            st.selectbox(
-                f"Page {current_page} of {total_pages}",
-                options=range(1, total_pages + 1),
-                key=page_state_key, # This key now works safely with the buttons
-                label_visibility="collapsed"
-            )
-            
-        with p_col3:
-            # Use the on_click callback here
-            st.button(
-                "Next ➡️", 
-                on_click=increment_page, 
-                disabled=(current_page >= total_pages),
-                key=f"next_{total_pages}" # Add a unique key here too
-            )
-        st.write("---")
+    with p_col3:
+        st.button(
+            "Next ➡️", 
+            on_click=increment_page, 
+            disabled=(current_page >= total_pages),
+            # Use the location in the key here as well
+            key=f"next_{location}"
+        )
+    st.write("---")
 
 
     # Header with project info and navigation
