@@ -140,14 +140,11 @@ class ProjectFirestoreManager:
 
     # ---------- CRUD ----------
 
+# In firestore_manager.py
+
     def save_project(self, project_id: str, project_data: Dict) -> bool:
         """
         Save a project to Firestore and upload any product images / excel if provided.
-
-        project_data fields used:
-          - name, description, created_date, attributes, distributions, filter_options,
-            pending_changes, excel_filename, products_data (each product may have image_data bytes)
-          - Optional: excel_file_data (bytes) to upload the Excel grid
         """
         if self._saving_in_progress:
             return False  # debounce: skip duplicate saves in this rerun
@@ -168,10 +165,13 @@ class ProjectFirestoreManager:
                 "excel_filename": project_data.get("excel_filename"),
             }
 
-            # Upload images and strip raw bytes from Firestore payload
-            products_for_firestore = []
-            image_mappings: Dict[str, Dict[str, str]] = {}  # product_id -> {"blob_path": ..., "public_url": ...}
+            # --- THE FIX IS ON THIS LINE ---
+            # Instead of starting with an empty dictionary, PRESERVE the existing image mappings.
+            image_mappings: Dict[str, Dict[str, str]] = project_data.get("image_mappings", {})
 
+            # This loop will now only run if new raw image_data is present (e.g., on first creation)
+            # On subsequent saves (like replacing the grid), it will be skipped, preserving the old mappings.
+            products_for_firestore = []
             for product in project_data.get("products_data", []):
                 pcopy = dict(product)
                 img_bytes = pcopy.pop("image_data", None)
@@ -187,7 +187,7 @@ class ProjectFirestoreManager:
                 products_for_firestore.append(pcopy)
 
             firestore_data["products_data"] = products_for_firestore
-            firestore_data["image_mappings"] = image_mappings  # keep both blob_path and public_url
+            firestore_data["image_mappings"] = image_mappings # Now saves the preserved mappings
 
             # Upload Excel if present
             excel_bytes = project_data.get("excel_file_data")
