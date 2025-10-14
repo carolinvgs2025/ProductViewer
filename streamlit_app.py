@@ -404,22 +404,20 @@ def show_edit_modal(product, project):
         
         with col_save:
             if st.button("💾 Save Changes", type="primary", use_container_width=True):
-                idx = product["original_index"]
-                if idx not in project['pending_changes']:
-                    project['pending_changes'][idx] = {}
-                
-                if new_description != product["original_description"]:
-                    project['pending_changes'][idx]["description"] = new_description
-                    product["description"] = new_description
-                
-                if new_price != product["original_price"]:
-                    project['pending_changes'][idx]["price"] = new_price
-                    product["price"] = new_price
-                
+                # ... (existing logic for saving description and price) ...
+            
                 for attr, new_val in new_attributes.items():
                     if new_val != product["original_attributes"][attr]:
                         project['pending_changes'][idx][attr] = new_val
                         product["attributes"][attr] = new_val
+            
+                        # --- ADD THIS LOGIC ---
+                        # Update the global filter options if this is a new value
+                        if new_val not in project['filter_options'].get(attr, []):
+                            if attr not in project['filter_options']:
+                                project['filter_options'][attr] = []
+                            project['filter_options'][attr].append(new_val)
+                            project['filter_options'][attr].sort() # Keep it sorted
                 
                 update_project_timestamp(project['id'])
                 st.success("✅ Changes saved!")
@@ -546,74 +544,73 @@ def show_projects_page():
     else:
         st.info("No projects yet. Create your first project to get started!")
 
-def show_create_project_page():
-    """Display the create new project page"""
-    st.title("🆕 Create New Project")
-    
-    if st.button("← Back to Projects"):
-        st.session_state.page = 'projects'
-        st.rerun()
-    
-    project_name = st.text_input("Project Name", placeholder="e.g., Q1 2024 Product Launch")
-    project_description = st.text_area("Description (optional)", placeholder="Brief description of this project...")
-    
-    if not project_name:
-        st.warning("Please enter a project name to continue.")
-        return
-    
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        st.subheader("📊 Excel File")
-        uploaded_excel = st.file_uploader(
-            "Upload Product Attribute Grid", 
-            type=['xlsx', 'xls'],
-            help="Excel file with Product ID, Description, ATT columns, DIST columns, and Price",
-            key="create_excel"
-        )
-        if uploaded_excel:
-            st.success(f"✅ {uploaded_excel.name}")
-    
-    with col2:
-        st.subheader("🖼️ Product Images")
-        uploaded_images = st.file_uploader(
-            "Upload Product Images",
-            type=['png', 'jpg', 'jpeg'],
-            accept_multiple_files=True,
-            help="Upload images named with Product IDs (e.g., '123.jpg' for product ID '123')",
-            key="create_images"
-        )
-        if uploaded_images:
-            st.success(f"✅ {len(uploaded_images)} images uploaded")
-    
-    # THIS PART NEEDS TO BE INDENTED (currently at line 620)
-    if st.button("🚀 Create Project", type="primary", disabled=not uploaded_excel):
-        if uploaded_excel:
-            image_dict = {img_file.name: img_file.getvalue() for img_file in uploaded_images} if uploaded_images else {}
-            products, attributes, distributions, filter_options = load_and_parse_excel(uploaded_excel, image_dict)
-            
-            project_id = create_new_project(project_name, project_description)
-            project = st.session_state.projects[project_id]
-            
-            project['products_data'] = products
-            project['attributes'] = attributes
-            project['distributions'] = distributions
-            project['filter_options'] = filter_options
-            project['uploaded_images'] = image_dict
-            project['excel_filename'] = uploaded_excel.name
-            
-            # Save complete project to cloud
-            if st.session_state.get('firestore_manager'):
-                st.session_state.firestore_manager.save_project(project_id, project)
-                st.success(f"✅ Project '{project_name}' created with {len(products)} products and saved to cloud!")
-            else:
-                st.success(f"✅ Project '{project_name}' created with {len(products)} products!")
-            
-            st.balloons()
-            
-            st.session_state.current_project = project_id
-            st.session_state.page = 'grid'
+    def show_create_project_page():
+        """Display the create new project page"""
+        st.title("🆕 Create New Project")
+        
+        if st.button("← Back to Projects"):
+            st.session_state.page = 'projects'
             st.rerun()
+        
+        project_name = st.text_input("Project Name", placeholder="e.g., Q1 2024 Product Launch")
+        project_description = st.text_area("Description (optional)", placeholder="Brief description of this project...")
+        
+        if not project_name:
+            st.warning("Please enter a project name to continue.")
+            return
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.subheader("📊 Excel File")
+            uploaded_excel = st.file_uploader(
+                "Upload Product Attribute Grid", 
+                type=['xlsx', 'xls'],
+                help="Excel file with Product ID, Description, ATT columns, DIST columns, and Price",
+                key="create_excel"
+            )
+            if uploaded_excel:
+                st.success(f"✅ {uploaded_excel.name}")
+        
+        with col2:
+            st.subheader("🖼️ Product Images")
+            uploaded_images = st.file_uploader(
+                "Upload Product Images",
+                type=['png', 'jpg', 'jpeg'],
+                accept_multiple_files=True,
+                help="Upload images named with Product IDs (e.g., '123.jpg' for product ID '123')",
+                key="create_images"
+            )
+            if uploaded_images:
+                st.success(f"✅ {len(uploaded_images)} images uploaded")
+        
+        if st.button("🚀 Create Project", type="primary", disabled=not uploaded_excel):
+            if uploaded_excel:
+                image_dict = {img_file.name: img_file.getvalue() for img_file in uploaded_images} if uploaded_images else {}
+                products, attributes, distributions, filter_options = load_and_parse_excel(uploaded_excel, image_dict)
+                
+                project_id = create_new_project(project_name, project_description)
+                project = st.session_state.projects[project_id]
+                
+                project['products_data'] = products
+                project['attributes'] = attributes
+                project['distributions'] = distributions
+                project['filter_options'] = filter_options
+                project['uploaded_images'] = image_dict
+                project['excel_filename'] = uploaded_excel.name
+                
+                # Save complete project to cloud
+                if st.session_state.get('firestore_manager'):
+                    st.session_state.firestore_manager.save_project(project_id, project)
+                    st.success(f"✅ Project '{project_name}' created with {len(products)} products and saved to cloud!")
+                else:
+                    st.success(f"✅ Project '{project_name}' created with {len(products)} products!")
+                
+                st.balloons()
+                
+                st.session_state.current_project = project_id
+                st.session_state.page = 'grid'
+                st.rerun()
 
 def show_grid_page():
     """Display the product grid for the current project"""
