@@ -619,7 +619,7 @@ def show_grid_page():
         if st.button("← Back to Projects", use_container_width=True):
             st.session_state.page = 'projects'; st.rerun()
 
-    # (File replacement logic remains the same)
+    # --- FILE REPLACEMENT LOGIC ---
     if new_excel:
         with st.spinner("Parsing new file and saving to cloud... Please wait."):
             products, attrs, dists, filters = load_and_parse_excel(new_excel, project.get('image_mappings', {}))
@@ -636,8 +636,7 @@ def show_grid_page():
             time.sleep(1); st.rerun()
             return
 
-    # ### MODIFICATION START: PENDING CHANGES ACTION BAR ###
-    # This entire block only appears if there are changes to be saved.
+    # --- PENDING CHANGES ACTION BAR ---
     if project.get('pending_changes'):
         st.info(f"You have **{len(project['pending_changes'])}** pending change(s). Click 'Apply All Changes' to make them permanent.")
         
@@ -645,45 +644,65 @@ def show_grid_page():
         with action_cols[0]:
             if st.button("✅ Apply All Changes", type="primary", use_container_width=True):
                 with st.spinner("Applying and saving changes..."):
-                    # Iterate through all products and "commit" the staged changes.
                     for product in project['products_data']:
                         if product['original_index'] in project['pending_changes']:
                             product['original_description'] = product['description']
                             product['original_price'] = product['price']
                             product['original_attributes'] = product['attributes'].copy()
                     
-                    # Clear the pending changes log.
                     project['pending_changes'] = {}
-                    
                     update_project_timestamp(project_id)
                     auto_save_project(project_id)
                     
                     st.success("All changes have been applied and saved.")
-                    time.sleep(1)
-                    st.rerun()
+                    time.sleep(1); st.rerun()
 
         with action_cols[1]:
             if st.button("❌ Reset All Changes", use_container_width=True):
                 with st.spinner("Reverting all pending changes..."):
-                    # Iterate through products and revert them to their original state.
                     for product in project['products_data']:
                         if product['original_index'] in project['pending_changes']:
                             product['description'] = product['original_description']
                             product['price'] = product['original_price']
                             product['attributes'] = product['original_attributes'].copy()
                     
-                    # Clear the pending changes log.
                     project['pending_changes'] = {}
+                    st.warning("All pending changes have been discarded."); time.sleep(1); st.rerun()
 
-                    st.warning("All pending changes have been discarded.")
-                    time.sleep(1)
-                    st.rerun()
-    # ### MODIFICATION END ###
+    # --- (RESTORED) ADD/REPLACE IMAGES SECTION ---
+    with st.container(border=True):
+        st.subheader("🖼️ Add / Replace Images")
+        new_images = st.file_uploader(
+            "Upload new images. Filenames must match Product IDs (e.g., '123.png'). Existing images will be replaced.",
+            type=['png', 'jpg', 'jpeg'],
+            accept_multiple_files=True,
+            key=f"add_images_{project_id}"
+        )
+
+        if new_images:
+            with st.spinner(f"Uploading {len(new_images)} image(s) and updating project..."):
+                product_lookup = {p['product_id']: p for p in project['products_data']}
+                
+                for image_file in new_images:
+                    product_id_from_filename = os.path.splitext(image_file.name)[0]
+                    if product_id_from_filename in product_lookup:
+                        product_lookup[product_id_from_filename]['image_data'] = image_file.getvalue()
+
+                auto_save_project(project_id)
+                del st.session_state.projects[project_id]
+                ensure_project_loaded(project_id)
+
+                st.success(f"✅ Successfully added/updated {len(new_images)} image(s). Reloading page.")
+                time.sleep(1)
+                st.rerun()
+                return
+
+    # --- (CONTINUED) ---
 
     if 'editing_product' in st.session_state:
         show_edit_modal(st.session_state.editing_product, project)
 
-    # (The rest of the function remains the same...)
+    # --- VIEW/SORT CONTROLS & SIDEBAR FILTERS ---
     with st.container(border=True):
         if f'view_options_{project_id}' not in st.session_state:
             st.session_state[f'view_options_{project_id}'] = {'visible_attributes': ['Description', 'Price'] + project['attributes'], 'sort_by': 'product_id', 'sort_ascending': True}
@@ -705,6 +724,7 @@ def show_grid_page():
         attribute_filters = {attr: st.multiselect(attr.replace('ATT ', ''), ['All'] + project['filter_options'].get(attr, []), default=['All']) for attr in project['attributes']}
         dist_filters = st.multiselect("Distribution", ['All'] + [d.replace('DIST ', '') for d in project['distributions']], default=['All']) if project['distributions'] else []
 
+    # --- FILTERING, SORTING, AND DISPLAY ---
     filtered_products = apply_filters(project['products_data'], attribute_filters, dist_filters)
     
     sort_by, is_ascending = view_options['sort_by'], view_options['sort_ascending']
