@@ -767,25 +767,24 @@ def render_pagination_controls(total_pages, location):
     # --- PAGINATION LOGIC ---
     total_products = len(sorted_products)
     total_pages = max(1, (total_products + PRODUCTS_PER_PAGE - 1) // PRODUCTS_PER_PAGE)
-
+    
     current_page = st.session_state[page_state_key]
     if current_page > total_pages:
         st.session_state[page_state_key] = total_pages
         current_page = total_pages
-
-    # <<< FIX 3: RENDER PAGINATION CONTROLS AT THE TOP >>>
+    
+    # 1. RENDER PAGINATION CONTROLS AT THE TOP
     if total_pages > 1:
-        render_pagination_controls(total_pages)
-
-    # Slice the product list for the current page
+        render_pagination_controls(total_pages, 'top')
+        
+    # 2. SLICE THE PRODUCT LIST FOR THE CURRENT PAGE
     start_index = (current_page - 1) * PRODUCTS_PER_PAGE
     end_index = start_index + PRODUCTS_PER_PAGE
     products_to_display = sorted_products[start_index:end_index]
     
-    # Display products in grid
+    # 3. DISPLAY THE PRODUCT GRID
     if products_to_display:
         cols_per_row = 4
-        # ... (your product grid display loop remains here) ...
         for i in range(0, len(products_to_display), cols_per_row):
             cols = st.columns(cols_per_row)
             for j, product in enumerate(products_to_display[i:i+cols_per_row]):
@@ -793,10 +792,11 @@ def render_pagination_controls(total_pages, location):
                     display_product_card(product, j, project, view_options['visible_attributes'])
     else:
         st.info("No products match the current filters.")
-
-    # <<< FIX 4: RENDER PAGINATION CONTROLS AT THE BOTTOM >>>
+    
+    # 4. RENDER PAGINATION CONTROLS AT THE BOTTOM
     if total_pages > 1:
-        render_pagination_controls(total_pages)
+        # This is the corrected and final call for the bottom controls
+        render_pagination_controls(total_pages, 'bottom')
 
 
 def auto_save_project(project_id):
