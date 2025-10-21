@@ -11,6 +11,7 @@ Firestore/Storage integration for persisting projects.
 from __future__ import annotations
 
 import os
+import time # Needed for cache busting
 from datetime import datetime
 from typing import Dict, List, Optional
 
@@ -30,6 +31,9 @@ def _blob_path_from_url(url: str, bucket_name: str) -> Optional[str]:
     u = url.strip()
     if not u:
         return None
+
+    # Strip cache-busting query params if present
+    u = u.split('?')[0]
 
     # gs://<bucket>/<blob_path>
     if u.startswith("gs://"):
@@ -140,15 +144,11 @@ class ProjectFirestoreManager:
 
     # ---------- CRUD ----------
 
-# In firestore_manager.py
-
-# In firestore_manager.py
-
     def save_project(self, project_id: str, project_data: Dict) -> bool | Dict:
         """
-        Save a project. If new image data is found, it DELETES the old image
-        for that product before uploading the new one.
-        Returns the updated image_mappings dictionary on success, otherwise False.
+        Save a project using LOWERCASE product IDs as keys in image_mappings.
+        If new image data is found, it DELETES the old image before uploading.
+        Returns the updated image_mappings dictionary (keyed by lowercase ID) on success.
         """
         if self._saving_in_progress:
             return False
@@ -168,7 +168,13 @@ class ProjectFirestoreManager:
                 "excel_filename": project_data.get("excel_filename"),
             }
 
-            image_mappings: Dict[str, Dict[str, str]] = project_data.get("image_mappings", {})
+            # --- CONSISTENCY FIX ---
+            # Ensure we load mappings keyed by lowercase, handling potential old data
+            image_mappings_raw = project_data.get("image_mappings", {})
+            image_mappings: Dict[str, Dict[str, str]] = {
+                str(k).lower().strip(): v for k, v in image_mappings_raw.items() if k and isinstance(v, dict)
+            }
+            
             products_for_firestore = []
 
             for product in project_data.get("products_data", []):
@@ -180,27 +186,36 @@ class ProjectFirestoreManager:
                         image_name, img_bytes = img_info
                     elif isinstance(img_info, bytes):
                         img_bytes = img_info
-                        image_name = f"{pcopy.get('product_id', 'unnamed')}.png"
-                    else:
+                        image_name = f"{pcopy.get('product_id', 'unnamed')}.png" # Use original case for filename only
+                    else: # If img_info is not valid, skip image processing for this product
                         products_for_firestore.append(pcopy)
                         continue
                     
-                    product_id = pcopy.get("product_id")
+                    # --- CONSISTENCY FIX ---
+                    # Get and use LOWERCASE product ID for all mapping operations
+                    product_id_lower = str(pcopy.get("product_id", "")).lower().strip()
+                    if not product_id_lower: # Skip if no valid ID
+                        products_for_firestore.append(pcopy)
+                        continue
 
-                    if product_id and product_id in image_mappings:
-                        old_blob_path = image_mappings[product_id].get("blob_path")
+                    # Delete old image using the lowercase key
+                    if product_id_lower in image_mappings:
+                        old_blob_path = image_mappings[product_id_lower].get("blob_path")
                         if old_blob_path:
                             try:
                                 self._bucket().blob(old_blob_path).delete()
                             except Exception as e:
                                 print(f"Could not delete old image {old_blob_path}: {e}")
                     
-                    blob_path = self._image_blob_path(project_id, image_name)
+                    # Upload new image
+                    blob_path = self._image_blob_path(project_id, image_name) # Use original case filename
                     content_type = "image/png" if image_name.lower().endswith(".png") else "image/jpeg"
-                    public_url = self._upload_bytes(blob_path, img_bytes, content_type)
+                    base_url = self._upload_bytes(blob_path, img_bytes, content_type)
+                    public_url = f"{base_url}?t={int(time.time())}" # Cache busting
                     
+                    # Update product data and mappings using LOWERCASE key
                     pcopy["image_url"] = public_url
-                    image_mappings[product_id] = {
+                    image_mappings[product_id_lower] = {
                         "blob_path": blob_path,
                         "public_url": public_url,
                     }
@@ -208,9 +223,10 @@ class ProjectFirestoreManager:
                 products_for_firestore.append(pcopy)
 
             firestore_data["products_data"] = products_for_firestore
+            # Save mappings keyed by lowercase ID
             firestore_data["image_mappings"] = image_mappings
 
-            # (Excel upload logic remains the same)
+            # Upload Excel if present
             excel_bytes = project_data.get("excel_file_data")
             excel_filename = project_data.get("excel_filename") or "grid.xlsx"
             if excel_bytes:
@@ -221,8 +237,7 @@ class ProjectFirestoreManager:
 
             self.db.collection(self.collection_name).document(project_id).set(firestore_data)
             
-            # --- THIS IS THE CHANGE ---
-            # Return the complete, updated URL mappings
+            # Return the updated, lowercase-keyed mappings
             return image_mappings
 
         except Exception as e:
@@ -234,9 +249,7 @@ class ProjectFirestoreManager:
 
     def load_project(self, project_id: str) -> Optional[Dict]:
         """
-        OPTIMIZED: Load a project WITHOUT fetching image bytes into server memory.
-        This version populates the 'image_url' field in each product from the
-        stored mappings, making the initial load extremely fast.
+        OPTIMIZED: Load project using LOWERCASE product IDs for URL lookup.
         """
         try:
             doc = self.db.collection(self.collection_name).document(project_id).get()
@@ -244,44 +257,47 @@ class ProjectFirestoreManager:
                 return None
             data = doc.to_dict() or {}
 
-            # Create a simple lookup map of product_id -> public_url
-            # This handles the complex legacy logic once, efficiently.
+            # --- CONSISTENCY FIX ---
+            # Ensure the lookup is built using LOWERCASE keys from Firestore data
             url_lookup: Dict[str, str] = {}
-            img_map = data.get("image_mappings", {}) or {}
+            img_map_raw = data.get("image_mappings", {}) or {}
+            # Normalize keys read from Firestore to lowercase, ensure value is a dict
+            img_map = {str(k).lower().strip(): v for k, v in img_map_raw.items() if k and isinstance(v, dict)}
 
-            for p_id, meta in img_map.items():
+            for p_id_lower, meta in img_map.items(): # p_id_lower is already lowercase
                 public_url = None
                 if isinstance(meta, dict):
                     public_url = meta.get("public_url")
-                elif isinstance(meta, str):  # Legacy support for string URLs
+                elif isinstance(meta, str): # Legacy support (should be less common now)
                     public_url = meta
                 
                 if public_url:
-                    url_lookup[p_id] = public_url
+                    url_lookup[p_id_lower] = public_url # Store with lowercase key
 
-            # Also support ultra-legacy case where each product only had "image_url"
+            # (Ultra-legacy support remains the same conceptually, ensure pid is lowercased if needed)
             if not url_lookup:
-                for p in data.get("products_data", []):
-                    url = p.get("image_url")
-                    if isinstance(url, str):
-                        pid = p.get("product_id")
-                        if pid:
-                            url_lookup[pid] = url
+                 for p in data.get("products_data", []):
+                     url = p.get("image_url")
+                     if isinstance(url, str):
+                         pid_lower = str(p.get("product_id", "")).lower().strip() # Use lowercase
+                         if pid_lower:
+                             url_lookup[pid_lower] = url
             
-            # Now, iterate through products and add the final URL
+            # --- CONSISTENCY FIX ---
+            # Iterate through products and use LOWERCASE ID for lookup
             for p in data.get("products_data", []):
-                pid = p.get("product_id")
-                if pid and pid in url_lookup:
-                    p["image_url"] = url_lookup[pid]
+                pid_lower = str(p.get("product_id", "")).lower().strip() # Get lowercase ID
+                if pid_lower and pid_lower in url_lookup:
+                    p["image_url"] = url_lookup[pid_lower] # Look up using lowercase ID
                 else:
-                    p["image_url"] = None  # Ensure the key exists
+                    p["image_url"] = None
                 
-                # IMPORTANT: Ensure old byte data is not present
                 p.pop("image_data", None)
 
-            # Clean up the main data object; we don't need to pass raw image bytes anymore
             data.pop("uploaded_images", None)
-            
+            # Ensure the mappings stored in session state are also consistently lowercase
+            data["image_mappings"] = img_map 
+
             return data
 
         except Exception as e:
@@ -316,16 +332,18 @@ class ProjectFirestoreManager:
             doc = self.db.collection(self.collection_name).document(project_id).get()
             if doc.exists:
                 v = doc.to_dict() or {}
-                # Handle both dict and string entries
-                for meta in (v.get("image_mappings") or {}).values():
+                # Use lowercase keys to find blobs to delete
+                image_mappings_raw = v.get("image_mappings", {}) or {}
+                img_map_lower = {str(k).lower().strip(): v for k, v in image_mappings_raw.items() if k and isinstance(v, dict)}
+
+                for p_id_lower, meta in img_map_lower.items():
+                    blob_path = None
                     if isinstance(meta, dict):
-                        blob_path = (meta or {}).get("blob_path")
+                        blob_path = meta.get("blob_path")
                         if not blob_path and meta.get("public_url"):
                             blob_path = _blob_path_from_url(meta["public_url"], self.bucket_name)
-                    elif isinstance(meta, str):
-                        blob_path = _blob_path_from_url(meta, self.bucket_name)
-                    else:
-                        blob_path = None
+                    elif isinstance(meta, str): # Legacy
+                         blob_path = _blob_path_from_url(meta, self.bucket_name)
 
                     if blob_path:
                         try:
@@ -362,11 +380,11 @@ def integrate_with_streamlit_app() -> Optional[ProjectFirestoreManager]:
         return st.session_state.firestore_manager
 
     try:
-        st.info("🔍 Checking Firebase configuration...")
+        # st.info("🔍 Checking Firebase configuration...") # Less verbose
 
         # Local JSON
         if os.path.exists("serviceAccount.json"):
-            st.info("📄 Found local serviceAccount.json")
+            # st.info("📄 Found local serviceAccount.json")
             bucket_name = os.environ.get("FIREBASE_STORAGE_BUCKET") or st.secrets.get("firebase", {}).get("bucket_name")
             if not bucket_name:
                 st.error("Missing bucket_name. Set env FIREBASE_STORAGE_BUCKET or secrets [firebase].bucket_name")
@@ -375,13 +393,13 @@ def integrate_with_streamlit_app() -> Optional[ProjectFirestoreManager]:
                 firebase_config_json_path="serviceAccount.json",
                 bucket_name=bucket_name,
             )
-            st.success("✅ Firestore initialized with local JSON")
+            # st.success("✅ Firestore initialized with local JSON")
             st.session_state.firestore_manager = mgr
             return mgr
 
         # Streamlit secrets
         if "firebase" in st.secrets:
-            st.info("🔑 Found Firebase secrets")
+            # st.info("🔑 Found Firebase secrets")
             fb = dict(st.secrets["firebase"])
 
             required = [
@@ -393,20 +411,28 @@ def integrate_with_streamlit_app() -> Optional[ProjectFirestoreManager]:
                 st.error(f"❌ Missing keys in [firebase] secrets: {missing}")
                 st.stop()
 
-            fb["private_key"] = _normalize_pem(str(fb["private_key"]))
-            creds = service_account.Credentials.from_service_account_info(fb)
+            try:
+                fb["private_key"] = _normalize_pem(str(fb["private_key"]))
+                creds = service_account.Credentials.from_service_account_info(fb)
+            except ValueError as e:
+                 st.error(f"❌ Error processing Firebase private key: {e}")
+                 st.stop()
+            except Exception as e:
+                 st.error(f"❌ Unexpected error initializing Firebase credentials: {e}")
+                 st.stop()
+
 
             mgr = ProjectFirestoreManager(
                 creds=creds,
                 project_id=fb["project_id"],
                 bucket_name=fb["bucket_name"],  # e.g. your-project.firebasestorage.app
             )
-            st.success("✅ Firestore initialized with Streamlit secrets")
+            # st.success("✅ Firestore initialized with Streamlit secrets")
             st.session_state.firestore_manager = mgr
             return mgr
 
         st.warning("⚠️ Firebase credentials not configured.")
-        st.stop()
+        st.stop() # Stop execution if no credentials found
 
     except Exception as e:
         st.error(f"❌ Firebase init failed: {e}")
@@ -431,7 +457,7 @@ def load_project_summaries_from_cloud() -> int:
 
     summaries = mgr.list_projects()  # already summaries, no images
     st.session_state.project_summaries = summaries or []
-    st.success(f"☁️ Loaded {len(st.session_state.project_summaries)} project summary(ies) from cloud")
+    # st.success(f"☁️ Loaded {len(st.session_state.project_summaries)} project summary(ies) from cloud") # Less verbose
     return len(st.session_state.project_summaries)
 
 
@@ -449,18 +475,19 @@ def ensure_project_loaded(project_id: str) -> bool:
     mgr: ProjectFirestoreManager = st.session_state.get("firestore_manager")
     if not mgr:
         return False
+    
+    with st.spinner(f"Loading project {project_id}..."):
+        data = mgr.load_project(project_id)
+        if not data:
+            st.error("Failed to load project from Firestore.")
+            return False
 
-    data = mgr.load_project(project_id)
-    if not data:
-        st.error("Failed to load project from Firestore.")
-        return False
-
-    st.session_state.projects[project_id] = data
-    return True
+        st.session_state.projects[project_id] = data
+        return True
 
 
-def save_current_project_to_cloud() -> bool:
-    """Save the active project one time (button handler should call this)."""
+def save_current_project_to_cloud() -> bool | Dict: # Modified return type hint
+    """Save the active project one time and return the result."""
     mgr: ProjectFirestoreManager = st.session_state.get("firestore_manager")
     proj_id: Optional[str] = st.session_state.get("current_project")
     if not mgr or not proj_id:
@@ -468,10 +495,12 @@ def save_current_project_to_cloud() -> bool:
     project = st.session_state.projects.get(proj_id)
     if not project:
         return False
-    ok = mgr.save_project(proj_id, project)
-    if ok:
+
+    result = mgr.save_project(proj_id, project) # Result is mappings dict or False
+    if result is not False: # Check if it was successful (didn't return False)
         st.success("☁️ Project saved to cloud!")
-    return ok
+    
+    return result # Return the mappings dict or False
 
 
 def get_or_create_user_id() -> str:
