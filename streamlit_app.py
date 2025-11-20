@@ -354,23 +354,20 @@ def create_download_excel(project):
 def display_product_card(product, project, visible_attributes):
     """
     Display a single product card using the high-performance image URL.
-    This function no longer processes raw image bytes, making it much faster.
+    The outer 'with st.container():' wrapper is removed to fix border issues.
     """
-    # CHANGE: Removed the outer `with st.container():` wrapper.
-    # The custom CSS class .product-card handles the border and layout better on its own.
+    # REMOVED: with st.container():
     st.markdown('<div class="product-card">', unsafe_allow_html=True)
     
-    # --- OPTIMIZATION: Use the image URL directly ---
-    # This calls the simple function that just creates an <img> tag from a URL.
-    # The user's browser handles the loading, not your Streamlit app.
+    # Image
     image_html = get_image_html_from_url(
         product_id=product["product_id"], 
-        image_url=product.get("image_url"), # Use .get() for safety
+        image_url=product.get("image_url"), 
         css_width=CARD_IMG_CSS_WIDTH
     )
     st.markdown(image_html, unsafe_allow_html=True)
     
-    # Build the text content for the card
+    # Text Content
     card_content = ""
     if "Description" in visible_attributes:
         desc_class = "changed-attribute" if product["description"] != product["original_description"] else ""
@@ -390,7 +387,7 @@ def display_product_card(product, project, visible_attributes):
     
     st.markdown(card_content, unsafe_allow_html=True)
 
-    # The edit button remains at the bottom
+    # Edit Button
     if st.button(f"Edit Product", key=f"edit_{product['original_index']}_{project['id']}", use_container_width=True):
         st.session_state.editing_product = product
         st.rerun()
@@ -643,7 +640,11 @@ def show_grid_page():
     with h_col4:
         st.markdown("<div><br></div>", unsafe_allow_html=True)
         if st.button("← Back to Projects", use_container_width=True):
-            st.session_state.page = 'projects'; st.rerun()
+            st.session_state.page = 'projects'
+            st.query_params.clear()
+            if page_state_key in st.session_state:
+                del st.session_state[page_state_key]
+            st.rerun()
 
     # --- FILE REPLACEMENT LOGIC ---
     if new_excel:
@@ -695,16 +696,17 @@ def show_grid_page():
                     project['pending_changes'] = {}
                     st.warning("All pending changes have been discarded."); time.sleep(1); st.rerun()
 
-    # --- ADD/REPLACE IMAGES SECTION ---
+    # --- ADD/REPLACE IMAGES SECTION (COMPACT STYLE) ---
     with st.container(border=True):
-        # CHANGE: Custom smaller header
-        st.markdown('<h3 style="font-size: 1.3rem; margin-top: 0;">🖼️ Add / Replace Images</h3>', unsafe_allow_html=True)
+        # STYLE: Smaller font (1.1rem) and negative top margin (-10px) to reduce box height
+        st.markdown('<h3 style="font-size: 1.1rem; margin-top: -10px; margin-bottom: 5px;">🖼️ Add / Replace Images</h3>', unsafe_allow_html=True)
         
         new_images = st.file_uploader(
             "Upload new images. Filenames must match Product IDs (e.g., '123.png'). Existing images will be replaced.",
             type=['png', 'jpg', 'jpeg'],
             accept_multiple_files=True,
-            key=f"add_images_{project_id}"
+            key=f"add_images_{project_id}",
+            label_visibility="collapsed"
         )
 
         if new_images:
@@ -743,7 +745,7 @@ def show_grid_page():
     if 'editing_product' in st.session_state:
         show_edit_modal(st.session_state.editing_product, project)
 
-    # --- VIEW/SORT CONTROLS & SIDEBAR FILTERS ---
+    # --- VIEW/SORT CONTROLS & SIDEBAR FILTERS (COMPACT STYLE) ---
     with st.container(border=True):
         if f'view_options_{project_id}' not in st.session_state:
             st.session_state[f'view_options_{project_id}'] = {'visible_attributes': ['Description', 'Price'] + project['attributes'], 'sort_by': 'product_id', 'sort_ascending': True}
@@ -751,16 +753,32 @@ def show_grid_page():
         all_fields = ['Description', 'Price'] + project['attributes']
         def fmt(name): return name.replace('ATT ', '')
         
-        # CHANGE: Custom smaller header
-        st.markdown('<h3 style="font-size: 1.3rem; margin-top: 0;">View & Sort Options</h3>', unsafe_allow_html=True)
+        # STYLE: Smaller header (1.1rem) and negative top margin (-10px)
+        st.markdown('<h3 style="font-size: 1.1rem; margin-top: -10px; margin-bottom: 5px;">View & Sort Options</h3>', unsafe_allow_html=True)
         
         v_col1, v_col2 = st.columns(2)
-        view_options['visible_attributes'] = v_col1.multiselect("Show Attributes:", all_fields, default=view_options['visible_attributes'], format_func=fmt)
+        
+        # STYLE: Small label text (13px)
+        v_col1.markdown("<p style='font-size: 13px; font-weight: bold; margin-bottom: 0px;'>Show Attributes:</p>", unsafe_allow_html=True)
+        view_options['visible_attributes'] = v_col1.multiselect(
+            "Show Attributes:", 
+            all_fields, 
+            default=view_options['visible_attributes'], 
+            format_func=fmt,
+            label_visibility="collapsed"
+        )
+        
         s_opts = ['product_id'] + all_fields
         s_col1, s_col2 = v_col2.columns([2,1])
+        
+        # STYLE: Small label text (13px)
+        s_col1.markdown("<p style='font-size: 13px; font-weight: bold; margin-bottom: 0px;'>Sort By:</p>", unsafe_allow_html=True)
         sort_by_index = s_opts.index(view_options['sort_by']) if view_options['sort_by'] in s_opts else 0
-        view_options['sort_by'] = s_col1.selectbox("Sort By:", s_opts, index=sort_by_index, format_func=fmt)
-        view_options['sort_ascending'] = s_col2.radio("Order:", ["🔼", "🔽"], horizontal=True, index=0 if view_options['sort_ascending'] else 1) == "🔼"
+        view_options['sort_by'] = s_col1.selectbox("Sort By:", s_opts, index=sort_by_index, format_func=fmt, label_visibility="collapsed")
+        
+        # STYLE: Small label text (13px)
+        s_col2.markdown("<p style='font-size: 13px; font-weight: bold; margin-bottom: 0px;'>Order:</p>", unsafe_allow_html=True)
+        view_options['sort_ascending'] = s_col2.radio("Order:", ["🔼", "🔽"], horizontal=True, index=0 if view_options['sort_ascending'] else 1, label_visibility="collapsed") == "🔼"
 
     with st.sidebar:
         st.header("🔍 Filters")
