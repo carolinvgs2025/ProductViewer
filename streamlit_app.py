@@ -51,7 +51,9 @@ hide_streamlit_style = """
 <style>
 #MainMenu {visibility: hidden;}
 footer {visibility: hidden;}
-#header {visibility: hidden;}  
+
+/* header {visibility: hidden;}  <-- This must be commented like this, or deleted */
+
 .stDeployButton {display:none;}
 div[data-testid="stToolbar"] {visibility: hidden;}
 div[data-testid="stDecoration"] {visibility: hidden;}
