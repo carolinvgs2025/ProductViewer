@@ -754,6 +754,9 @@ def show_grid_page():
                     max-height: 100px; /* Adjust this pixel value to change height */
                     overflow-y: auto;
                 }
+                .stMultiSelect [data-baseweb="tag"] span {
+                    font-size: 10px !important; 
+                }
             </style>
         """, unsafe_allow_html=True)
 
