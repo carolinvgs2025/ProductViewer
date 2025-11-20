@@ -356,45 +356,46 @@ def display_product_card(product, project, visible_attributes):
     Display a single product card using the high-performance image URL.
     This function no longer processes raw image bytes, making it much faster.
     """
-    with st.container():
-        st.markdown('<div class="product-card">', unsafe_allow_html=True)
-        
-        # --- OPTIMIZATION: Use the image URL directly ---
-        # This calls the simple function that just creates an <img> tag from a URL.
-        # The user's browser handles the loading, not your Streamlit app.
-        image_html = get_image_html_from_url(
-            product_id=product["product_id"], 
-            image_url=product.get("image_url"), # Use .get() for safety
-            css_width=CARD_IMG_CSS_WIDTH
-        )
-        st.markdown(image_html, unsafe_allow_html=True)
-        
-        # Build the text content for the card
-        card_content = ""
-        if "Description" in visible_attributes:
-            desc_class = "changed-attribute" if product["description"] != product["original_description"] else ""
-            card_content += f'<p class="{desc_class}"><strong>{product["description"]}</strong></p>'
-        
-        if "Price" in visible_attributes and product.get("price"):
-            price_class = "changed-attribute" if product["price"] != product["original_price"] else ""
-            card_content += f'<p class="{price_class}">Price: ${product["price"]}</p>'
-        
-        for attr in project.get('attributes', []):
-            if attr in visible_attributes:
-                current_val = product["attributes"].get(attr, "N/A")
-                original_val = product["original_attributes"].get(attr, "N/A")
-                attr_class = "changed-attribute" if current_val != original_val else ""
-                clean_attr = attr.replace('ATT ', '')
-                card_content += f'<small class="{attr_class}"><strong>{clean_attr}:</strong> {current_val}</small><br>'
-        
-        st.markdown(card_content, unsafe_allow_html=True)
+    # CHANGE: Removed the outer `with st.container():` wrapper.
+    # The custom CSS class .product-card handles the border and layout better on its own.
+    st.markdown('<div class="product-card">', unsafe_allow_html=True)
+    
+    # --- OPTIMIZATION: Use the image URL directly ---
+    # This calls the simple function that just creates an <img> tag from a URL.
+    # The user's browser handles the loading, not your Streamlit app.
+    image_html = get_image_html_from_url(
+        product_id=product["product_id"], 
+        image_url=product.get("image_url"), # Use .get() for safety
+        css_width=CARD_IMG_CSS_WIDTH
+    )
+    st.markdown(image_html, unsafe_allow_html=True)
+    
+    # Build the text content for the card
+    card_content = ""
+    if "Description" in visible_attributes:
+        desc_class = "changed-attribute" if product["description"] != product["original_description"] else ""
+        card_content += f'<p class="{desc_class}"><strong>{product["description"]}</strong></p>'
+    
+    if "Price" in visible_attributes and product.get("price"):
+        price_class = "changed-attribute" if product["price"] != product["original_price"] else ""
+        card_content += f'<p class="{price_class}">Price: ${product["price"]}</p>'
+    
+    for attr in project.get('attributes', []):
+        if attr in visible_attributes:
+            current_val = product["attributes"].get(attr, "N/A")
+            original_val = product["original_attributes"].get(attr, "N/A")
+            attr_class = "changed-attribute" if current_val != original_val else ""
+            clean_attr = attr.replace('ATT ', '')
+            card_content += f'<small class="{attr_class}"><strong>{clean_attr}:</strong> {current_val}</small><br>'
+    
+    st.markdown(card_content, unsafe_allow_html=True)
 
-        # The edit button remains at the bottom
-        if st.button(f"Edit Product", key=f"edit_{product['original_index']}_{project['id']}", use_container_width=True):
-            st.session_state.editing_product = product
-            st.rerun()
-        
-        st.markdown('</div>', unsafe_allow_html=True)
+    # The edit button remains at the bottom
+    if st.button(f"Edit Product", key=f"edit_{product['original_index']}_{project['id']}", use_container_width=True):
+        st.session_state.editing_product = product
+        st.rerun()
+    
+    st.markdown('</div>', unsafe_allow_html=True)
 
 def show_edit_modal(product, project):
     @st.dialog(f"Edit Product: {product['product_id']}")
@@ -642,14 +643,7 @@ def show_grid_page():
     with h_col4:
         st.markdown("<div><br></div>", unsafe_allow_html=True)
         if st.button("← Back to Projects", use_container_width=True):
-            st.session_state.page = 'projects'
-            
-            # --- THIS IS THE CHANGE ---
-            st.query_params.clear() # Remove ?project=... from URL
-            
-            if page_state_key in st.session_state:
-                del st.session_state[page_state_key]
-            st.rerun()
+            st.session_state.page = 'projects'; st.rerun()
 
     # --- FILE REPLACEMENT LOGIC ---
     if new_excel:
@@ -703,7 +697,9 @@ def show_grid_page():
 
     # --- ADD/REPLACE IMAGES SECTION ---
     with st.container(border=True):
-        st.subheader("🖼️ Add / Replace Images")
+        # CHANGE: Custom smaller header
+        st.markdown('<h3 style="font-size: 1.3rem; margin-top: 0;">🖼️ Add / Replace Images</h3>', unsafe_allow_html=True)
+        
         new_images = st.file_uploader(
             "Upload new images. Filenames must match Product IDs (e.g., '123.png'). Existing images will be replaced.",
             type=['png', 'jpg', 'jpeg'],
@@ -755,7 +751,9 @@ def show_grid_page():
         all_fields = ['Description', 'Price'] + project['attributes']
         def fmt(name): return name.replace('ATT ', '')
         
-        st.subheader("View & Sort Options")
+        # CHANGE: Custom smaller header
+        st.markdown('<h3 style="font-size: 1.3rem; margin-top: 0;">View & Sort Options</h3>', unsafe_allow_html=True)
+        
         v_col1, v_col2 = st.columns(2)
         view_options['visible_attributes'] = v_col1.multiselect("Show Attributes:", all_fields, default=view_options['visible_attributes'], format_func=fmt)
         s_opts = ['product_id'] + all_fields
