@@ -696,9 +696,8 @@ def show_grid_page():
                     project['pending_changes'] = {}
                     st.warning("All pending changes have been discarded."); time.sleep(1); st.rerun()
 
-    # --- ADD/REPLACE IMAGES SECTION (COMPACT STYLE) ---
+    # --- ADD/REPLACE IMAGES SECTION ---
     with st.container(border=True):
-        # STYLE: Smaller font (1.1rem) and negative top margin (-10px) to reduce box height
         st.markdown('<h3 style="font-size: 1.1rem; margin-top: -10px; margin-bottom: 5px;">🖼️ Add / Replace Images</h3>', unsafe_allow_html=True)
         
         new_images = st.file_uploader(
@@ -745,20 +744,29 @@ def show_grid_page():
     if 'editing_product' in st.session_state:
         show_edit_modal(st.session_state.editing_product, project)
 
-    # --- VIEW/SORT CONTROLS & SIDEBAR FILTERS (COMPACT STYLE) ---
+    # --- VIEW/SORT CONTROLS & SIDEBAR FILTERS ---
     with st.container(border=True):
+        # --- CSS INJECTION TO LIMIT MULTISELECT HEIGHT ---
+        st.markdown("""
+            <style>
+                /* Target the internal container of st.multiselect */
+                .stMultiSelect div[data-baseweb="select"] > div:first-child {
+                    max-height: 100px; /* Adjust this pixel value to change height */
+                    overflow-y: auto;
+                }
+            </style>
+        """, unsafe_allow_html=True)
+
         if f'view_options_{project_id}' not in st.session_state:
             st.session_state[f'view_options_{project_id}'] = {'visible_attributes': ['Description', 'Price'] + project['attributes'], 'sort_by': 'product_id', 'sort_ascending': True}
         view_options = st.session_state[f'view_options_{project_id}']
         all_fields = ['Description', 'Price'] + project['attributes']
         def fmt(name): return name.replace('ATT ', '')
         
-        # STYLE: Smaller header (1.1rem) and negative top margin (-10px)
         st.markdown('<h3 style="font-size: 1.1rem; margin-top: -10px; margin-bottom: 5px;">View & Sort Options</h3>', unsafe_allow_html=True)
         
         v_col1, v_col2 = st.columns(2)
         
-        # STYLE: Small label text (13px)
         v_col1.markdown("<p style='font-size: 13px; font-weight: bold; margin-bottom: 0px;'>Show Attributes:</p>", unsafe_allow_html=True)
         view_options['visible_attributes'] = v_col1.multiselect(
             "Show Attributes:", 
@@ -771,12 +779,10 @@ def show_grid_page():
         s_opts = ['product_id'] + all_fields
         s_col1, s_col2 = v_col2.columns([2,1])
         
-        # STYLE: Small label text (13px)
         s_col1.markdown("<p style='font-size: 13px; font-weight: bold; margin-bottom: 0px;'>Sort By:</p>", unsafe_allow_html=True)
         sort_by_index = s_opts.index(view_options['sort_by']) if view_options['sort_by'] in s_opts else 0
         view_options['sort_by'] = s_col1.selectbox("Sort By:", s_opts, index=sort_by_index, format_func=fmt, label_visibility="collapsed")
         
-        # STYLE: Small label text (13px)
         s_col2.markdown("<p style='font-size: 13px; font-weight: bold; margin-bottom: 0px;'>Order:</p>", unsafe_allow_html=True)
         view_options['sort_ascending'] = s_col2.radio("Order:", ["🔼", "🔽"], horizontal=True, index=0 if view_options['sort_ascending'] else 1, label_visibility="collapsed") == "🔼"
 
