@@ -540,20 +540,15 @@ def show_create_project_page():
             else:
                 with st.spinner("Creating project and uploading assets..."):
                     # 1. Parse the Excel file. 
-                    # Pass an empty dict {} for mappings because we don't have URLs yet.
                     excel_bytes = uploaded_excel.getvalue()
                     products, attrs, dists, filters = load_and_parse_excel(BytesIO(excel_bytes), {})
                     
                     # 2. Manually match uploaded images to the parsed products
                     if uploaded_images:
-                        # Create a lookup map for the products (lowercase ID -> product dict)
                         product_lookup = {p['product_id'].lower().strip(): p for p in products}
                         
-                        # Loop through uploaded images and attach data to matching products
                         for img in uploaded_images:
-                            # Normalize filename to match product ID logic
                             fname_id = os.path.splitext(img.name)[0].lower().strip()
-                            
                             if fname_id in product_lookup:
                                 # Inject the tuple (filename, bytes) so save_project detects it
                                 product_lookup[fname_id]['image_data'] = (img.name, img.getvalue())
@@ -569,13 +564,20 @@ def show_create_project_page():
                         'filter_options': filters,
                         'excel_file_data': excel_bytes,
                         'excel_filename': uploaded_excel.name,
-                        # We don't strictly need 'uploaded_images' here anymore since 
-                        # we injected the data into 'products_data', but keeping it is harmless.
                     })
                     
-                    # 4. Save to cloud (this will now process the injected image_data)
+                    # 4. Save to cloud
                     if st.session_state.get('firestore_manager'):
                         st.session_state.firestore_manager.save_project(project_id, project)
+
+                    # --- THE FIX IS HERE ---
+                    # Delete the local "stale" version (which has bytes but no URLs)
+                    if project_id in st.session_state.projects:
+                        del st.session_state.projects[project_id]
+                    
+                    # Immediately re-fetch the "fresh" version from the Cloud (which has the URLs)
+                    ensure_project_loaded(project_id)
+                    # -----------------------
                     
                     st.success(f"✅ Project '{project_name}' created!")
                     st.balloons()
