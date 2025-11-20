@@ -52,13 +52,17 @@ hide_streamlit_style = """
 #MainMenu {visibility: hidden;}
 footer {visibility: hidden;}
 
-/* header {visibility: hidden;}  <-- This must be commented like this, or deleted */
+/* header {visibility: hidden;} */ 
 
 .stDeployButton {display:none;}
 div[data-testid="stToolbar"] {visibility: hidden;}
 div[data-testid="stDecoration"] {visibility: hidden;}
 div[data-testid="stStatusWidget"] {visibility: hidden;}
-#root > div:nth-child(1) > div > div > div > div > section > div {padding-top: 0rem;}
+
+/* 2. FIX "CUT OFF" BUTTONS: Restore padding to the top of the page */
+.block-container {
+    padding-top: 3rem !important;
+}
 </style>
 """
 st.markdown(hide_streamlit_style, unsafe_allow_html=True)
