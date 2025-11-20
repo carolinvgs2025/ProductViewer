@@ -503,6 +503,9 @@ def show_projects_page():
                 
                 if col2.button("Open", key=f"open_{s['id']}", type="primary", use_container_width=True):
                     if ensure_project_loaded(s['id']):
+                        # --- THIS IS THE CHANGE ---
+                        st.query_params["project"] = s['id']  # Update URL to /?project=ID
+                        
                         st.session_state.current_project = s['id']
                         st.session_state.page = 'grid'
                         st.rerun()
@@ -540,15 +543,20 @@ def show_create_project_page():
             else:
                 with st.spinner("Creating project and uploading assets..."):
                     # 1. Parse the Excel file. 
+                    # Pass an empty dict {} for mappings because we don't have URLs yet.
                     excel_bytes = uploaded_excel.getvalue()
                     products, attrs, dists, filters = load_and_parse_excel(BytesIO(excel_bytes), {})
                     
                     # 2. Manually match uploaded images to the parsed products
                     if uploaded_images:
+                        # Create a lookup map for the products (lowercase ID -> product dict)
                         product_lookup = {p['product_id'].lower().strip(): p for p in products}
                         
+                        # Loop through uploaded images and attach data to matching products
                         for img in uploaded_images:
+                            # Normalize filename to match product ID logic
                             fname_id = os.path.splitext(img.name)[0].lower().strip()
+                            
                             if fname_id in product_lookup:
                                 # Inject the tuple (filename, bytes) so save_project detects it
                                 product_lookup[fname_id]['image_data'] = (img.name, img.getvalue())
@@ -564,25 +572,28 @@ def show_create_project_page():
                         'filter_options': filters,
                         'excel_file_data': excel_bytes,
                         'excel_filename': uploaded_excel.name,
+                        # We don't strictly need 'uploaded_images' here anymore since 
+                        # we injected the data into 'products_data', but keeping it is harmless.
                     })
                     
-                    # 4. Save to cloud
+                    # 4. Save to cloud (this will now process the injected image_data)
                     if st.session_state.get('firestore_manager'):
                         st.session_state.firestore_manager.save_project(project_id, project)
-
-                    # --- THE FIX IS HERE ---
+                    
                     # Delete the local "stale" version (which has bytes but no URLs)
                     if project_id in st.session_state.projects:
                         del st.session_state.projects[project_id]
                     
                     # Immediately re-fetch the "fresh" version from the Cloud (which has the URLs)
                     ensure_project_loaded(project_id)
-                    # -----------------------
-                    
+
                     st.success(f"✅ Project '{project_name}' created!")
                     st.balloons()
                     time.sleep(1)
                     
+                    # --- THIS IS THE CHANGE ---
+                    st.query_params["project"] = project_id # Set URL for the new project
+
                     # 5. Load the grid page
                     st.session_state.current_project = project_id
                     st.session_state.page = 'grid'
@@ -631,7 +642,14 @@ def show_grid_page():
     with h_col4:
         st.markdown("<div><br></div>", unsafe_allow_html=True)
         if st.button("← Back to Projects", use_container_width=True):
-            st.session_state.page = 'projects'; st.rerun()
+            st.session_state.page = 'projects'
+            
+            # --- THIS IS THE CHANGE ---
+            st.query_params.clear() # Remove ?project=... from URL
+            
+            if page_state_key in st.session_state:
+                del st.session_state[page_state_key]
+            st.rerun()
 
     # --- FILE REPLACEMENT LOGIC ---
     if new_excel:
@@ -683,10 +701,7 @@ def show_grid_page():
                     project['pending_changes'] = {}
                     st.warning("All pending changes have been discarded."); time.sleep(1); st.rerun()
 
-    # --- (RESTORED) ADD/REPLACE IMAGES SECTION ---
-# In show_grid_page() in your streamlit_app.py file
-
-    # --- (CORRECTED) ADD/REPLACE IMAGES SECTION ---
+    # --- ADD/REPLACE IMAGES SECTION ---
     with st.container(border=True):
         st.subheader("🖼️ Add / Replace Images")
         new_images = st.file_uploader(
@@ -711,12 +726,9 @@ def show_grid_page():
                 if updated_count > 0:
                     st.text(f"Found {updated_count} matches. Uploading to cloud storage...")
                     
-                    # --- THIS IS THE CHANGE ---
-                    # auto_save_project now returns the updated image mappings
                     updated_mappings = auto_save_project(project_id)
 
                     if updated_mappings:
-                        # Update the local project data with the new URLs before reloading
                         project['image_mappings'] = updated_mappings
                         for p_id, p_data in product_lookup.items():
                             if p_id in updated_mappings and "public_url" in updated_mappings[p_id]:
@@ -731,7 +743,6 @@ def show_grid_page():
 
                 else:
                     st.warning(f"⚠️ No products found matching the {len(new_images)} uploaded image filename(s). Please check that the filenames (without extension) match the Product IDs.")
-    # --- (CONTINUED) ---
 
     if 'editing_product' in st.session_state:
         show_edit_modal(st.session_state.editing_product, project)
