@@ -49,15 +49,25 @@ st.set_page_config(
 # Hide Streamlit style elements
 hide_streamlit_style = """
 <style>
+/* Hide the hamburger menu and footer */
 #MainMenu {visibility: hidden;}
 footer {visibility: hidden;}
 
+/* Hide the deploy button */
 .stDeployButton {display:none;}
+
+/* Hide toolbar and decorations */
 div[data-testid="stToolbar"] {visibility: hidden;}
 div[data-testid="stDecoration"] {visibility: hidden;}
 div[data-testid="stStatusWidget"] {visibility: hidden;}
 
-/* 2. FIX "CUT OFF" BUTTONS: Restore padding to the top of the page */
+/* SAFETY LOCK: Force the Sidebar Toggle (>) to be visible/clickable */
+[data-testid="stSidebarCollapsedControl"] {
+    display: block !important;
+    visibility: visible !important;
+}
+
+/* FIX: Add top padding so your title/buttons aren't cut off */
 .block-container {
     padding-top: 3rem !important;
 }
@@ -708,8 +718,8 @@ def show_grid_page():
 
     # --- ADD/REPLACE IMAGES SECTION ---
     with st.container(border=True):
-        # STYLE: Even smaller header (1.0rem) and tighter margin
-        st.markdown('<p style="font-size: 1.0rem; font-weight: bold; margin-top: -5px; margin-bottom: 5px;">🖼️ Add / Replace Images</p>', unsafe_allow_html=True)
+        # STYLE: Smaller header (1.1rem) and tighter top margin
+        st.markdown('<h3 style="font-size: 1.1rem; margin-top: -10px; margin-bottom: 5px;">🖼️ Add / Replace Images</h3>', unsafe_allow_html=True)
         
         new_images = st.file_uploader(
             "Upload new images. Filenames must match Product IDs (e.g., '123.png'). Existing images will be replaced.",
@@ -750,7 +760,9 @@ def show_grid_page():
 
     # --- VIEW/SORT CONTROLS & SIDEBAR FILTERS ---
     with st.container(border=True):
-        # CSS INJECTION to shrink the multiselect box
+        # CSS INJECTION: 
+        # 1. Limit multiselect height (scrollable).
+        # 2. Make tags inside multiselect smaller.
         st.markdown("""
             <style>
                 .stMultiSelect div[data-baseweb="select"] > div:first-child {
@@ -768,12 +780,12 @@ def show_grid_page():
         all_fields = ['Description', 'Price'] + project['attributes']
         def fmt(name): return name.replace('ATT ', '')
         
-        # STYLE: Smaller header (1.0rem)
-        st.markdown('<p style="font-size: 1.0rem; font-weight: bold; margin-top: -5px; margin-bottom: 5px;">View & Sort Options</p>', unsafe_allow_html=True)
+        # STYLE: Smaller header
+        st.markdown('<h3 style="font-size: 1.1rem; margin-top: -10px; margin-bottom: 5px;">View & Sort Options</h3>', unsafe_allow_html=True)
         
         v_col1, v_col2 = st.columns(2)
         
-        # STYLE: Smaller label (13px)
+        # STYLE: Smaller label text
         v_col1.markdown("<p style='font-size: 13px; font-weight: bold; margin-bottom: 0px;'>Show Attributes:</p>", unsafe_allow_html=True)
         view_options['visible_attributes'] = v_col1.multiselect("Show Attributes:", all_fields, default=view_options['visible_attributes'], format_func=fmt, label_visibility="collapsed")
         
