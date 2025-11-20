@@ -539,29 +539,41 @@ def show_create_project_page():
                 st.warning("Please provide a project name and an Excel file.")
             else:
                 with st.spinner("Creating project and uploading assets..."):
-                    # Get the raw bytes for both images and the Excel file
-                    image_dict = {img.name: img.getvalue() for img in uploaded_images}
+                    # 1. Parse the Excel file. 
+                    # Pass an empty dict {} for mappings because we don't have URLs yet.
                     excel_bytes = uploaded_excel.getvalue()
-
-                    # Your parsing function is now efficient, this is fast
-                    products, attrs, dists, filters = load_and_parse_excel(BytesIO(excel_bytes), image_dict)
+                    products, attrs, dists, filters = load_and_parse_excel(BytesIO(excel_bytes), {})
                     
+                    # 2. Manually match uploaded images to the parsed products
+                    if uploaded_images:
+                        # Create a lookup map for the products (lowercase ID -> product dict)
+                        product_lookup = {p['product_id'].lower().strip(): p for p in products}
+                        
+                        # Loop through uploaded images and attach data to matching products
+                        for img in uploaded_images:
+                            # Normalize filename to match product ID logic
+                            fname_id = os.path.splitext(img.name)[0].lower().strip()
+                            
+                            if fname_id in product_lookup:
+                                # Inject the tuple (filename, bytes) so save_project detects it
+                                product_lookup[fname_id]['image_data'] = (img.name, img.getvalue())
+
+                    # 3. Create the project structure
                     project_id = create_new_project(project_name, project_description)
                     project = st.session_state.projects[project_id]
                     
-                    # --- MODIFICATION: Prepare data for the smart firestore_manager ---
                     project.update({
                         'products_data': products,
                         'attributes': attrs,
                         'distributions': dists,
                         'filter_options': filters,
-                        'uploaded_images': image_dict,  # Pass the raw image bytes for the manager to upload
-                        'excel_file_data': excel_bytes, # Pass the raw excel bytes for the manager to upload
-                        'excel_filename': uploaded_excel.name
+                        'excel_file_data': excel_bytes,
+                        'excel_filename': uploaded_excel.name,
+                        # We don't strictly need 'uploaded_images' here anymore since 
+                        # we injected the data into 'products_data', but keeping it is harmless.
                     })
                     
-                    # Your firestore_manager.save_project will now correctly handle
-                    # uploading these bytes to cloud storage and saving URLs.
+                    # 4. Save to cloud (this will now process the injected image_data)
                     if st.session_state.get('firestore_manager'):
                         st.session_state.firestore_manager.save_project(project_id, project)
                     
@@ -569,7 +581,7 @@ def show_create_project_page():
                     st.balloons()
                     time.sleep(1)
                     
-                    # Now, immediately switch to the grid page
+                    # 5. Load the grid page
                     st.session_state.current_project = project_id
                     st.session_state.page = 'grid'
                     st.rerun()
