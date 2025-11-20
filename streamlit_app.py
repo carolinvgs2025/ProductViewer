@@ -805,6 +805,22 @@ def auto_save_project(project_id):
 
 def main():
     """Main application router."""
+    
+    # --- 1. Handle Incoming URL Parameters ---
+    # Check if the user arrived via a specific project link
+    if "project" in st.query_params and not st.session_state.current_project:
+        target_project_id = st.query_params["project"]
+        
+        # Verify it's a valid project before switching
+        if ensure_project_loaded(target_project_id):
+            st.session_state.current_project = target_project_id
+            st.session_state.page = 'grid'
+        else:
+            # If invalid/deleted, clear the param so we don't get stuck
+            st.query_params.clear()
+            st.error(f"Project {target_project_id} not found.")
+
+    # --- 2. Standard Routing ---
     if st.session_state.page == 'projects':
         show_projects_page()
     elif st.session_state.page == 'create_project':
