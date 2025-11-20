@@ -73,7 +73,7 @@ st.markdown("""
     .product-card {
         border: 1px solid #ddd;
         border-radius: 8px;
-        padding: 10px;
+        padding: 11px;
         margin: 5px;
         background-color: white;
         box-shadow: 2px 2px 5px rgba(0,0,0,0.1);
