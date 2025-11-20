@@ -51,7 +51,7 @@ hide_streamlit_style = """
 <style>
 #MainMenu {visibility: hidden;}
 footer {visibility: hidden;}
-/* header {visibility: hidden;}  <-- REMOVED so you can see the sidebar toggle */
+#header {visibility: hidden;}  
 .stDeployButton {display:none;}
 div[data-testid="stToolbar"] {visibility: hidden;}
 div[data-testid="stDecoration"] {visibility: hidden;}
