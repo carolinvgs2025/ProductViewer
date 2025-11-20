@@ -73,7 +73,7 @@ st.markdown("""
     .product-card {
         border: 1px solid #ddd;
         border-radius: 8px;
-        padding: 11px;
+        padding: 9px;
         margin: 5px;
         background-color: white;
         box-shadow: 2px 2px 5px rgba(0,0,0,0.1);
@@ -755,7 +755,7 @@ def show_grid_page():
                     overflow-y: auto;
                 }
                 .stMultiSelect [data-baseweb="tag"] span {
-                    font-size: 10px !important; 
+                    font-size: 11px; 
                 }
             </style>
         """, unsafe_allow_html=True)
