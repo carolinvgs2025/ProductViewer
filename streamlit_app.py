@@ -353,46 +353,52 @@ def create_download_excel(project):
 # --- UI DISPLAY FUNCTIONS ---
 def display_product_card(product, project, visible_attributes):
     """
-    Display a single product card using the high-performance image URL.
-    The outer 'with st.container():' wrapper is removed to fix border issues.
+    Display a single product card using a native Streamlit container.
+    This fixes the 'border not going around' issue.
     """
-    # REMOVED: with st.container():
-    st.markdown('<div class="product-card">', unsafe_allow_html=True)
-    
-    # Image
-    image_html = get_image_html_from_url(
-        product_id=product["product_id"], 
-        image_url=product.get("image_url"), 
-        css_width=CARD_IMG_CSS_WIDTH
-    )
-    st.markdown(image_html, unsafe_allow_html=True)
-    
-    # Text Content
-    card_content = ""
-    if "Description" in visible_attributes:
-        desc_class = "changed-attribute" if product["description"] != product["original_description"] else ""
-        card_content += f'<p class="{desc_class}"><strong>{product["description"]}</strong></p>'
-    
-    if "Price" in visible_attributes and product.get("price"):
-        price_class = "changed-attribute" if product["price"] != product["original_price"] else ""
-        card_content += f'<p class="{price_class}">Price: ${product["price"]}</p>'
-    
-    for attr in project.get('attributes', []):
-        if attr in visible_attributes:
-            current_val = product["attributes"].get(attr, "N/A")
-            original_val = product["original_attributes"].get(attr, "N/A")
-            attr_class = "changed-attribute" if current_val != original_val else ""
-            clean_attr = attr.replace('ATT ', '')
-            card_content += f'<small class="{attr_class}"><strong>{clean_attr}:</strong> {current_val}</small><br>'
-    
-    st.markdown(card_content, unsafe_allow_html=True)
+    # USE NATIVE CONTAINER: This ensures the border wraps the image, text, AND button.
+    with st.container(border=True):
+        
+        # 1. Product Image
+        image_html = get_image_html_from_url(
+            product_id=product["product_id"], 
+            image_url=product.get("image_url"), 
+            css_width=CARD_IMG_CSS_WIDTH
+        )
+        st.markdown(image_html, unsafe_allow_html=True)
+        
+        # 2. Product Text Content
+        card_content = ""
+        if "Description" in visible_attributes:
+            # Check for changes to highlight in red
+            desc_class = "changed-attribute" if product["description"] != product["original_description"] else ""
+            # Using standard paragraph with a bit of bottom margin
+            card_content += f'<p class="{desc_class}" style="margin-bottom: 4px;"><strong>{product["description"]}</strong></p>'
+        
+        if "Price" in visible_attributes and product.get("price"):
+            price_class = "changed-attribute" if product["price"] != product["original_price"] else ""
+            card_content += f'<p class="{price_class}" style="margin-bottom: 8px;">Price: ${product["price"]}</p>'
+        
+        # Attributes Loop
+        for attr in project.get('attributes', []):
+            if attr in visible_attributes:
+                current_val = product["attributes"].get(attr, "N/A")
+                original_val = product["original_attributes"].get(attr, "N/A")
+                
+                # Highlight changes
+                style = 'color: #B22222; font-weight: bold;' if current_val != original_val else ''
+                clean_attr = attr.replace('ATT ', '')
+                
+                # Render attribute with smaller font (12px)
+                card_content += f'<div style="font-size: 12px; line-height: 1.4; {style}"><strong>{clean_attr}:</strong> {current_val}</div>'
+        
+        # Render all text at once
+        st.markdown(card_content, unsafe_allow_html=True)
 
-    # Edit Button
-    if st.button(f"Edit Product", key=f"edit_{product['original_index']}_{project['id']}", use_container_width=True):
-        st.session_state.editing_product = product
-        st.rerun()
-    
-    st.markdown('</div>', unsafe_allow_html=True)
+        # 3. Edit Button (Now safely inside the border)
+        if st.button(f"Edit", key=f"edit_{product['original_index']}_{project['id']}", use_container_width=True):
+            st.session_state.editing_product = product
+            st.rerun()
 
 def show_edit_modal(product, project):
     @st.dialog(f"Edit Product: {product['product_id']}")
@@ -612,7 +618,7 @@ def show_grid_page():
     if page_state_key not in st.session_state:
         st.session_state[page_state_key] = 1
 
-    # --- HELPER FUNCTIONS (Scoped to this page) ---
+    # --- HELPER FUNCTIONS ---
     def increment_page(): st.session_state[page_state_key] += 1
     def decrement_page(): st.session_state[page_state_key] -= 1
 
@@ -698,7 +704,8 @@ def show_grid_page():
 
     # --- ADD/REPLACE IMAGES SECTION ---
     with st.container(border=True):
-        st.markdown('<h3 style="font-size: 1.1rem; margin-top: -10px; margin-bottom: 5px;">🖼️ Add / Replace Images</h3>', unsafe_allow_html=True)
+        # STYLE: Even smaller header (1.0rem) and tighter margin
+        st.markdown('<p style="font-size: 1.0rem; font-weight: bold; margin-top: -5px; margin-bottom: 5px;">🖼️ Add / Replace Images</p>', unsafe_allow_html=True)
         
         new_images = st.file_uploader(
             "Upload new images. Filenames must match Product IDs (e.g., '123.png'). Existing images will be replaced.",
@@ -711,20 +718,16 @@ def show_grid_page():
         if new_images:
             with st.spinner(f"Matching {len(new_images)} image(s) to products..."):
                 product_lookup = {p['product_id'].lower().strip(): p for p in project['products_data']}
-                
                 updated_count = 0
                 for image_file in new_images:
                     product_id_from_filename = os.path.splitext(image_file.name)[0].lower().strip()
-                    
                     if product_id_from_filename in product_lookup:
                         product_lookup[product_id_from_filename]['image_data'] = (image_file.name, image_file.getvalue())
                         updated_count += 1
 
                 if updated_count > 0:
                     st.text(f"Found {updated_count} matches. Uploading to cloud storage...")
-                    
                     updated_mappings = auto_save_project(project_id)
-
                     if updated_mappings:
                         project['image_mappings'] = updated_mappings
                         for p_id, p_data in product_lookup.items():
@@ -732,30 +735,25 @@ def show_grid_page():
                                 p_data['image_url'] = updated_mappings[p_id]["public_url"]
                         
                         st.success(f"✅ Successfully added/updated {updated_count} image(s).")
-                        time.sleep(1)
-                        st.rerun()
-                        return
+                        time.sleep(1); st.rerun(); return
                     else:
                         st.error("Failed to save the project after uploading images.")
-
                 else:
-                    st.warning(f"⚠️ No products found matching the {len(new_images)} uploaded image filename(s). Please check that the filenames (without extension) match the Product IDs.")
+                    st.warning(f"⚠️ No products found matching the {len(new_images)} uploaded images.")
 
     if 'editing_product' in st.session_state:
         show_edit_modal(st.session_state.editing_product, project)
 
     # --- VIEW/SORT CONTROLS & SIDEBAR FILTERS ---
     with st.container(border=True):
-        # --- CSS INJECTION TO LIMIT MULTISELECT HEIGHT ---
+        # CSS INJECTION to shrink the multiselect box
         st.markdown("""
             <style>
-                /* Target the internal container of st.multiselect */
                 .stMultiSelect div[data-baseweb="select"] > div:first-child {
-                    max-height: 100px; /* Adjust this pixel value to change height */
-                    overflow-y: auto;
+                    max-height: 100px; overflow-y: auto;
                 }
                 .stMultiSelect [data-baseweb="tag"] span {
-                    font-size: 11px; 
+                    font-size: 12px !important; 
                 }
             </style>
         """, unsafe_allow_html=True)
@@ -766,18 +764,14 @@ def show_grid_page():
         all_fields = ['Description', 'Price'] + project['attributes']
         def fmt(name): return name.replace('ATT ', '')
         
-        st.markdown('<h3 style="font-size: 1.1rem; margin-top: -10px; margin-bottom: 5px;">View & Sort Options</h3>', unsafe_allow_html=True)
+        # STYLE: Smaller header (1.0rem)
+        st.markdown('<p style="font-size: 1.0rem; font-weight: bold; margin-top: -5px; margin-bottom: 5px;">View & Sort Options</p>', unsafe_allow_html=True)
         
         v_col1, v_col2 = st.columns(2)
         
+        # STYLE: Smaller label (13px)
         v_col1.markdown("<p style='font-size: 13px; font-weight: bold; margin-bottom: 0px;'>Show Attributes:</p>", unsafe_allow_html=True)
-        view_options['visible_attributes'] = v_col1.multiselect(
-            "Show Attributes:", 
-            all_fields, 
-            default=view_options['visible_attributes'], 
-            format_func=fmt,
-            label_visibility="collapsed"
-        )
+        view_options['visible_attributes'] = v_col1.multiselect("Show Attributes:", all_fields, default=view_options['visible_attributes'], format_func=fmt, label_visibility="collapsed")
         
         s_opts = ['product_id'] + all_fields
         s_col1, s_col2 = v_col2.columns([2,1])
