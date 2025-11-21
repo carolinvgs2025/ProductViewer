@@ -718,8 +718,8 @@ def show_grid_page():
 
     # --- ADD/REPLACE IMAGES SECTION ---
     with st.container(border=True):
-        # STYLE: Smaller header (1.1rem) and tighter top margin
-        st.markdown('<h3 style="font-size: 1.1rem; margin-top: -10px; margin-bottom: 5px;">🖼️ Add / Replace Images</h3>', unsafe_allow_html=True)
+        # STYLE: Smaller Header (1.1rem) and Negative Margin (-10px) to reduce height
+        st.markdown('<p style="font-size: 1.1rem; font-weight: bold; margin-top: -5px; margin-bottom: 5px;">🖼️ Add / Replace Images</p>', unsafe_allow_html=True)
         
         new_images = st.file_uploader(
             "Upload new images. Filenames must match Product IDs (e.g., '123.png'). Existing images will be replaced.",
@@ -760,9 +760,7 @@ def show_grid_page():
 
     # --- VIEW/SORT CONTROLS & SIDEBAR FILTERS ---
     with st.container(border=True):
-        # CSS INJECTION: 
-        # 1. Limit multiselect height (scrollable).
-        # 2. Make tags inside multiselect smaller.
+        # CSS INJECTION: Limits multiselect height AND makes the attribute tags smaller
         st.markdown("""
             <style>
                 .stMultiSelect div[data-baseweb="select"] > div:first-child {
@@ -780,22 +778,24 @@ def show_grid_page():
         all_fields = ['Description', 'Price'] + project['attributes']
         def fmt(name): return name.replace('ATT ', '')
         
-        # STYLE: Smaller header
-        st.markdown('<h3 style="font-size: 1.1rem; margin-top: -10px; margin-bottom: 5px;">View & Sort Options</h3>', unsafe_allow_html=True)
+        # STYLE: Smaller Header
+        st.markdown('<p style="font-size: 1.1rem; font-weight: bold; margin-top: -5px; margin-bottom: 5px;">View & Sort Options</p>', unsafe_allow_html=True)
         
         v_col1, v_col2 = st.columns(2)
         
-        # STYLE: Smaller label text
+        # STYLE: Smaller Label (13px)
         v_col1.markdown("<p style='font-size: 13px; font-weight: bold; margin-bottom: 0px;'>Show Attributes:</p>", unsafe_allow_html=True)
         view_options['visible_attributes'] = v_col1.multiselect("Show Attributes:", all_fields, default=view_options['visible_attributes'], format_func=fmt, label_visibility="collapsed")
         
         s_opts = ['product_id'] + all_fields
         s_col1, s_col2 = v_col2.columns([2,1])
         
+        # STYLE: Smaller Label (13px)
         s_col1.markdown("<p style='font-size: 13px; font-weight: bold; margin-bottom: 0px;'>Sort By:</p>", unsafe_allow_html=True)
         sort_by_index = s_opts.index(view_options['sort_by']) if view_options['sort_by'] in s_opts else 0
         view_options['sort_by'] = s_col1.selectbox("Sort By:", s_opts, index=sort_by_index, format_func=fmt, label_visibility="collapsed")
         
+        # STYLE: Smaller Label (13px)
         s_col2.markdown("<p style='font-size: 13px; font-weight: bold; margin-bottom: 0px;'>Order:</p>", unsafe_allow_html=True)
         view_options['sort_ascending'] = s_col2.radio("Order:", ["🔼", "🔽"], horizontal=True, index=0 if view_options['sort_ascending'] else 1, label_visibility="collapsed") == "🔼"
 
