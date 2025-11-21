@@ -76,9 +76,9 @@ hide_streamlit_style = """
 
     /* 5. Explicitly target the sidebar toggle arrow to ensure it's seen */
     [data-testid="stSidebarCollapsedControl"] {
-        visibility: visible !important;
-        display: block !important;
-        color: inherit !important;
+        visibility: visible;
+        display: block;
+        color: inherit;
     }
 
     /* 6. Fix content padding so title isn't cut off */
