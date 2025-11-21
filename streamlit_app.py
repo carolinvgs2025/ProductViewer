@@ -49,26 +49,51 @@ st.set_page_config(
 # Hide Streamlit style elements
 hide_streamlit_style = """
 <style>
-#MainMenu {visibility: hidden;}
-footer {visibility: hidden;}
+    /* 1. Hide the "Hamburger" menu (top right) */
+    #MainMenu {
+        visibility: hidden;
+        display: none;
+    }
 
-.stDeployButton {display:none;}
-div[data-testid="stToolbar"] {visibility: hidden;}
-div[data-testid="stDecoration"] {visibility: hidden;}
-div[data-testid="stStatusWidget"] {visibility: hidden;}
+    /* 2. Hide the "Deploy" button (top right) */
+    .stDeployButton {
+        visibility: hidden;
+        display: none;
+    }
 
-/* 1. FORCE the sidebar button to be visible and white (so it shows on color backgrounds) */
-[data-testid="stSidebarCollapsedControl"] {
-    display: block !important;
-    visibility: visible !important;
-    color: black !important; 
-    z-index: 1000000 !important; /* Force it to the very front */
-}
+    /* 3. Hide the footer */
+    footer {
+        visibility: hidden;
+        display: none;
+    }
 
-/* 2. Fix buttons being cut off at the top */
-.block-container {
-    padding-top: 3rem !important;
-}
+    /* 4. SAFETY: Ensure the Header Bar itself is visible 
+       (This holds the sidebar toggle > arrow) */
+    header[data-testid="stHeader"] {
+        visibility: visible !important;
+        background: transparent !important;
+    }
+
+    /* 5. Explicitly target the sidebar toggle arrow to ensure it's seen */
+    [data-testid="stSidebarCollapsedControl"] {
+        visibility: visible !important;
+        display: block !important;
+        color: inherit !important;
+    }
+
+    /* 6. Fix content padding so title isn't cut off */
+    .block-container {
+        padding-top: 3rem !important;
+    }
+
+    /* 7. Custom styles for the MultiSelect (Scrollable + Small Tags) */
+    .stMultiSelect div[data-baseweb="select"] > div:first-child {
+        max-height: 100px; 
+        overflow-y: auto;
+    }
+    .stMultiSelect [data-baseweb="tag"] span {
+        font-size: 12px !important; 
+    }
 </style>
 """
 st.markdown(hide_streamlit_style, unsafe_allow_html=True)
