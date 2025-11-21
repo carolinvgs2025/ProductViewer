@@ -49,25 +49,23 @@ st.set_page_config(
 # Hide Streamlit style elements
 hide_streamlit_style = """
 <style>
-/* Hide the hamburger menu and footer */
 #MainMenu {visibility: hidden;}
 footer {visibility: hidden;}
 
-/* Hide the deploy button */
 .stDeployButton {display:none;}
-
-/* Hide toolbar and decorations */
 div[data-testid="stToolbar"] {visibility: hidden;}
 div[data-testid="stDecoration"] {visibility: hidden;}
 div[data-testid="stStatusWidget"] {visibility: hidden;}
 
-/* SAFETY LOCK: Force the Sidebar Toggle (>) to be visible/clickable */
+/* 1. FORCE the sidebar button to be visible and white (so it shows on color backgrounds) */
 [data-testid="stSidebarCollapsedControl"] {
     display: block !important;
     visibility: visible !important;
+    color: black !important; 
+    z-index: 1000000 !important; /* Force it to the very front */
 }
 
-/* FIX: Add top padding so your title/buttons aren't cut off */
+/* 2. Fix buttons being cut off at the top */
 .block-container {
     padding-top: 3rem !important;
 }
