@@ -843,7 +843,9 @@ def show_grid_page():
             with st.expander("Generate Client Link"):
                 base_url = "visualgridvg.streamlit.app/" 
                 client_link = f"{base_url}?project={project_id}&mode=client"
-                st.text_input("Copy Client URL:", value=client_link, key="client_link_copy")
+                
+                st.code(client_link, language="text")
+                
                 st.info("⚠️ This link opens the project in 'Read-Only' mode.")
             st.divider()
 
