@@ -836,18 +836,21 @@ def show_grid_page():
         s_col2.markdown("<p style='font-size: 13px; font-weight: bold; margin-bottom: 0px;'>Order:</p>", unsafe_allow_html=True)
         view_options['sort_ascending'] = s_col2.radio("Order:", ["🔼", "🔽"], horizontal=True, index=0 if view_options['sort_ascending'] else 1, label_visibility="collapsed") == "🔼"
 
-    with st.sidebar:
-        # --- NEW: SHARE BUTTON (ADMIN ONLY) ---
-        if is_admin:
-            st.header("🔗 Share Project")
-            with st.expander("Generate Client Link"):
-                base_url = "visualgridvg.streamlit.app/" 
-                client_link = f"{base_url}?project={project_id}&mode=client"
-                
-                st.code(client_link, language="text")
-                
-                st.info("⚠️ This link opens the project in 'Read-Only' mode.")
-            st.divider()
+        with st.sidebar:
+            # --- NEW: SHARE BUTTON (ADMIN ONLY) ---
+            if is_admin:
+                st.header("🔗 Share Project")
+                with st.expander("Generate Client Link"):
+                    # 1. Update this to include 'https://' 
+                    # 2. DOUBLE CHECK: Is 'visualgridvg' definitely what is in your address bar?
+                    base_url = "https://visualgridvg.streamlit.app/" 
+                    
+                    client_link = f"{base_url}?project={project_id}&mode=client"
+                    
+                    st.code(client_link, language="text")
+                    
+                    st.info("⚠️ This link opens the project in 'Read-Only' mode.")
+                st.divider()
 
         st.header("🔍 Filters")
         attribute_filters = {attr: st.multiselect(attr.replace('ATT ', ''), ['All'] + project['filter_options'].get(attr, []), default=['All']) for attr in project['attributes']}
