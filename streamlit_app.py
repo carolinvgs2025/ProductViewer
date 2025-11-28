@@ -433,9 +433,10 @@ def display_product_card(product, project, visible_attributes):
         st.markdown(card_content, unsafe_allow_html=True)
 
         # 3. Edit Button (Now safely inside the border)
-        if st.button(f"Edit", key=f"edit_{product['original_index']}_{project['id']}", use_container_width=True):
-            st.session_state.editing_product = product
-            st.rerun()
+        if not st.session_state.get("client_mode", False):
+            if st.button(f"Edit", key=f"edit_{product['original_index']}_{project['id']}", use_container_width=True):
+                st.session_state.editing_product = product
+                st.rerun()
 
 def show_edit_modal(product, project):
     @st.dialog(f"Edit Product: {product['product_id']}")
@@ -650,6 +651,10 @@ def show_grid_page():
     project = st.session_state.projects[st.session_state.current_project]
     project_id = project['id']
     
+    # --- CLIENT MODE CHECK ---
+    # We use this flag to hide admin-only features
+    is_admin = not st.session_state.get("client_mode", False)
+
     PRODUCTS_PER_PAGE = 50
     page_state_key = f'page_number_{project_id}'
     if page_state_key not in st.session_state:
@@ -672,25 +677,33 @@ def show_grid_page():
     h_col1, h_col2, h_col3, h_col4 = st.columns([4, 3, 3, 2])
     with h_col1:
         st.title(f"📊 {project['name']}")
-    with h_col2:
-        st.markdown("<div><br></div>", unsafe_allow_html=True)
-        new_excel = st.file_uploader("Replace Source Grid", type=['xlsx', 'xls'], key=f"replace_{project_id}", label_visibility="collapsed")
+    
+    # ADMIN ONLY: File Uploader to replace grid
+    if is_admin:
+        with h_col2:
+            st.markdown("<div><br></div>", unsafe_allow_html=True)
+            new_excel = st.file_uploader("Replace Source Grid", type=['xlsx', 'xls'], key=f"replace_{project_id}", label_visibility="collapsed")
+    
+    # ALL USERS: Download Button (Clients can typically download, but if not desired, wrap in is_admin)
     with h_col3:
         st.markdown("<div><br></div>", unsafe_allow_html=True)
         excel_data = create_download_excel(project)
         if excel_data:
             st.download_button("📥 Download Current Grid", excel_data, f"{project['name']}_updated.xlsx", use_container_width=True)
+    
+    # ADMIN ONLY: Back Button
     with h_col4:
         st.markdown("<div><br></div>", unsafe_allow_html=True)
-        if st.button("← Back to Projects", use_container_width=True):
-            st.session_state.page = 'projects'
-            st.query_params.clear()
-            if page_state_key in st.session_state:
-                del st.session_state[page_state_key]
-            st.rerun()
+        if is_admin:
+            if st.button("← Back to Projects", use_container_width=True):
+                st.session_state.page = 'projects'
+                st.query_params.clear()
+                if page_state_key in st.session_state:
+                    del st.session_state[page_state_key]
+                st.rerun()
 
-    # --- FILE REPLACEMENT LOGIC ---
-    if new_excel:
+    # --- FILE REPLACEMENT LOGIC (ADMIN ONLY) ---
+    if is_admin and 'new_excel' in locals() and new_excel:
         with st.spinner("Parsing new file and saving to cloud... Please wait."):
             products, attrs, dists, filters = load_and_parse_excel(new_excel, project.get('image_mappings', {}))
             project.update({
@@ -706,8 +719,8 @@ def show_grid_page():
             time.sleep(1); st.rerun()
             return
 
-    # --- PENDING CHANGES ACTION BAR ---
-    if project.get('pending_changes'):
+    # --- PENDING CHANGES ACTION BAR (ADMIN ONLY) ---
+    if is_admin and project.get('pending_changes'):
         st.info(f"You have **{len(project['pending_changes'])}** pending change(s). Click 'Apply All Changes' to make them permanent.")
         
         action_cols = st.columns(2)
@@ -739,44 +752,45 @@ def show_grid_page():
                     project['pending_changes'] = {}
                     st.warning("All pending changes have been discarded."); time.sleep(1); st.rerun()
 
-    # --- ADD/REPLACE IMAGES SECTION ---
-    with st.container(border=True):
-        # STYLE: Smaller Header (1.1rem) and Negative Margin (-10px) to reduce height
-        st.markdown('<p style="font-size: 1.1rem; font-weight: bold; margin-top: -5px; margin-bottom: 5px;">🖼️ Add / Replace Images</p>', unsafe_allow_html=True)
-        
-        new_images = st.file_uploader(
-            "Upload new images. Filenames must match Product IDs (e.g., '123.png'). Existing images will be replaced.",
-            type=['png', 'jpg', 'jpeg'],
-            accept_multiple_files=True,
-            key=f"add_images_{project_id}",
-            label_visibility="collapsed"
-        )
+    # --- ADD/REPLACE IMAGES SECTION (ADMIN ONLY) ---
+    if is_admin:
+        with st.container(border=True):
+            # STYLE: Smaller Header (1.1rem) and Negative Margin (-10px) to reduce height
+            st.markdown('<p style="font-size: 1.1rem; font-weight: bold; margin-top: -5px; margin-bottom: 5px;">🖼️ Add / Replace Images</p>', unsafe_allow_html=True)
+            
+            new_images = st.file_uploader(
+                "Upload new images. Filenames must match Product IDs (e.g., '123.png'). Existing images will be replaced.",
+                type=['png', 'jpg', 'jpeg'],
+                accept_multiple_files=True,
+                key=f"add_images_{project_id}",
+                label_visibility="collapsed"
+            )
 
-        if new_images:
-            with st.spinner(f"Matching {len(new_images)} image(s) to products..."):
-                product_lookup = {p['product_id'].lower().strip(): p for p in project['products_data']}
-                updated_count = 0
-                for image_file in new_images:
-                    product_id_from_filename = os.path.splitext(image_file.name)[0].lower().strip()
-                    if product_id_from_filename in product_lookup:
-                        product_lookup[product_id_from_filename]['image_data'] = (image_file.name, image_file.getvalue())
-                        updated_count += 1
+            if new_images:
+                with st.spinner(f"Matching {len(new_images)} image(s) to products..."):
+                    product_lookup = {p['product_id'].lower().strip(): p for p in project['products_data']}
+                    updated_count = 0
+                    for image_file in new_images:
+                        product_id_from_filename = os.path.splitext(image_file.name)[0].lower().strip()
+                        if product_id_from_filename in product_lookup:
+                            product_lookup[product_id_from_filename]['image_data'] = (image_file.name, image_file.getvalue())
+                            updated_count += 1
 
-                if updated_count > 0:
-                    st.text(f"Found {updated_count} matches. Uploading to cloud storage...")
-                    updated_mappings = auto_save_project(project_id)
-                    if updated_mappings:
-                        project['image_mappings'] = updated_mappings
-                        for p_id, p_data in product_lookup.items():
-                            if p_id in updated_mappings and "public_url" in updated_mappings[p_id]:
-                                p_data['image_url'] = updated_mappings[p_id]["public_url"]
-                        
-                        st.success(f"✅ Successfully added/updated {updated_count} image(s).")
-                        time.sleep(1); st.rerun(); return
+                    if updated_count > 0:
+                        st.text(f"Found {updated_count} matches. Uploading to cloud storage...")
+                        updated_mappings = auto_save_project(project_id)
+                        if updated_mappings:
+                            project['image_mappings'] = updated_mappings
+                            for p_id, p_data in product_lookup.items():
+                                if p_id in updated_mappings and "public_url" in updated_mappings[p_id]:
+                                    p_data['image_url'] = updated_mappings[p_id]["public_url"]
+                            
+                            st.success(f"✅ Successfully added/updated {updated_count} image(s).")
+                            time.sleep(1); st.rerun(); return
+                        else:
+                            st.error("Failed to save the project after uploading images.")
                     else:
-                        st.error("Failed to save the project after uploading images.")
-                else:
-                    st.warning(f"⚠️ No products found matching the {len(new_images)} uploaded images.")
+                        st.warning(f"⚠️ No products found matching the {len(new_images)} uploaded images.")
 
     if 'editing_product' in st.session_state:
         show_edit_modal(st.session_state.editing_product, project)
@@ -823,6 +837,16 @@ def show_grid_page():
         view_options['sort_ascending'] = s_col2.radio("Order:", ["🔼", "🔽"], horizontal=True, index=0 if view_options['sort_ascending'] else 1, label_visibility="collapsed") == "🔼"
 
     with st.sidebar:
+        # --- NEW: SHARE BUTTON (ADMIN ONLY) ---
+        if is_admin:
+            st.header("🔗 Share Project")
+            with st.expander("Generate Client Link"):
+                base_url = "https://productviewer-krisvg25.streamlit.app/" 
+                client_link = f"{base_url}?project={project_id}&mode=client"
+                st.text_input("Copy Client URL:", value=client_link, key="client_link_copy")
+                st.info("⚠️ This link opens the project in 'Read-Only' mode.")
+            st.divider()
+
         st.header("🔍 Filters")
         attribute_filters = {attr: st.multiselect(attr.replace('ATT ', ''), ['All'] + project['filter_options'].get(attr, []), default=['All']) for attr in project['attributes']}
         dist_filters = st.multiselect("Distribution", ['All'] + [d.replace('DIST ', '') for d in project['distributions']], default=['All']) if project['distributions'] else []
@@ -876,6 +900,12 @@ def main():
     """Main application router."""
     
     # --- 1. Handle Incoming URL Parameters ---
+    # Check for 'client' mode in the URL
+    if st.query_params.get("mode") == "client":
+        st.session_state.client_mode = True
+    else:
+        st.session_state.client_mode = False
+
     # Check if the user arrived via a specific project link
     if "project" in st.query_params and not st.session_state.current_project:
         target_project_id = st.query_params["project"]
@@ -885,11 +915,19 @@ def main():
             st.session_state.current_project = target_project_id
             st.session_state.page = 'grid'
         else:
-            # If invalid/deleted, clear the param so we don't get stuck
             st.query_params.clear()
             st.error(f"Project {target_project_id} not found.")
 
-    # --- 2. Standard Routing ---
+    # --- 2. Enforce Client Mode Routing ---
+    # If in client mode, FORCE the page to be 'grid'. 
+    # This prevents them from seeing the project list.
+    if st.session_state.get("client_mode"):
+        if not st.session_state.current_project:
+            st.error("No project specified for client view.")
+            return # Stop execution
+        st.session_state.page = 'grid'
+
+    # --- 3. Standard Routing ---
     if st.session_state.page == 'projects':
         show_projects_page()
     elif st.session_state.page == 'create_project':
