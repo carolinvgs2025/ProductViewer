@@ -652,7 +652,6 @@ def show_grid_page():
     project_id = project['id']
     
     # --- CLIENT MODE CHECK ---
-    # We use this flag to hide admin-only features
     is_admin = not st.session_state.get("client_mode", False)
 
     PRODUCTS_PER_PAGE = 50
@@ -678,13 +677,13 @@ def show_grid_page():
     with h_col1:
         st.title(f"📊 {project['name']}")
     
-    # ADMIN ONLY: File Uploader to replace grid
+    # ADMIN ONLY: File Uploader
     if is_admin:
         with h_col2:
             st.markdown("<div><br></div>", unsafe_allow_html=True)
             new_excel = st.file_uploader("Replace Source Grid", type=['xlsx', 'xls'], key=f"replace_{project_id}", label_visibility="collapsed")
     
-    # ALL USERS: Download Button (Clients can typically download, but if not desired, wrap in is_admin)
+    # ALL USERS: Download Button
     with h_col3:
         st.markdown("<div><br></div>", unsafe_allow_html=True)
         excel_data = create_download_excel(project)
@@ -755,7 +754,6 @@ def show_grid_page():
     # --- ADD/REPLACE IMAGES SECTION (ADMIN ONLY) ---
     if is_admin:
         with st.container(border=True):
-            # STYLE: Smaller Header (1.1rem) and Negative Margin (-10px) to reduce height
             st.markdown('<p style="font-size: 1.1rem; font-weight: bold; margin-top: -5px; margin-bottom: 5px;">🖼️ Add / Replace Images</p>', unsafe_allow_html=True)
             
             new_images = st.file_uploader(
@@ -795,9 +793,8 @@ def show_grid_page():
     if 'editing_product' in st.session_state:
         show_edit_modal(st.session_state.editing_product, project)
 
-    # --- VIEW/SORT CONTROLS & SIDEBAR FILTERS ---
+    # --- VIEW/SORT CONTROLS ---
     with st.container(border=True):
-        # CSS INJECTION: Limits multiselect height AND makes the attribute tags smaller
         st.markdown("""
             <style>
                 .stMultiSelect div[data-baseweb="select"] > div:first-child {
@@ -815,41 +812,35 @@ def show_grid_page():
         all_fields = ['Description', 'Price'] + project['attributes']
         def fmt(name): return name.replace('ATT ', '')
         
-        # STYLE: Smaller Header
         st.markdown('<p style="font-size: 1.1rem; font-weight: bold; margin-top: -5px; margin-bottom: 5px;">View & Sort Options</p>', unsafe_allow_html=True)
         
         v_col1, v_col2 = st.columns(2)
-        
-        # STYLE: Smaller Label (13px)
         v_col1.markdown("<p style='font-size: 13px; font-weight: bold; margin-bottom: 0px;'>Show Attributes:</p>", unsafe_allow_html=True)
         view_options['visible_attributes'] = v_col1.multiselect("Show Attributes:", all_fields, default=view_options['visible_attributes'], format_func=fmt, label_visibility="collapsed")
         
         s_opts = ['product_id'] + all_fields
         s_col1, s_col2 = v_col2.columns([2,1])
-        
-        # STYLE: Smaller Label (13px)
         s_col1.markdown("<p style='font-size: 13px; font-weight: bold; margin-bottom: 0px;'>Sort By:</p>", unsafe_allow_html=True)
         sort_by_index = s_opts.index(view_options['sort_by']) if view_options['sort_by'] in s_opts else 0
         view_options['sort_by'] = s_col1.selectbox("Sort By:", s_opts, index=sort_by_index, format_func=fmt, label_visibility="collapsed")
-        
-        # STYLE: Smaller Label (13px)
         s_col2.markdown("<p style='font-size: 13px; font-weight: bold; margin-bottom: 0px;'>Order:</p>", unsafe_allow_html=True)
         view_options['sort_ascending'] = s_col2.radio("Order:", ["🔼", "🔽"], horizontal=True, index=0 if view_options['sort_ascending'] else 1, label_visibility="collapsed") == "🔼"
 
-        with st.sidebar:
-            # --- NEW: SHARE BUTTON (ADMIN ONLY) ---
-            if is_admin:
-                st.header("🔗 Share Project")
-                with st.expander("Generate Client Link"):
-                    base_url = "https://visualgridvg.streamlit.app/" 
-                    
-                    client_link = f"{base_url}?project={project_id}&mode=client"
-                    
-                    st.code(client_link, language="text")
-                    
-                    st.info("⚠️ This link opens the project in 'Read-Only' mode.")
-                st.divider()
+    # --- SIDEBAR: SHARE & FILTERS ---
+    with st.sidebar:
+        # 1. Share Section (Admin Only)
+        if is_admin:
+            st.header("🔗 Share Project")
+            with st.expander("Generate Client Link"):
+                # URL must exactly match your browser URL including https://
+                base_url = "https://visualgridvg.streamlit.app/" 
+                
+                client_link = f"{base_url}?project={project_id}&mode=client"
+                st.code(client_link, language="text")
+                st.info("⚠️ This link opens the project in 'Read-Only' mode.")
+            st.divider()
 
+        # 2. Filters Section (Now correctly indented)
         st.header("🔍 Filters")
         attribute_filters = {attr: st.multiselect(attr.replace('ATT ', ''), ['All'] + project['filter_options'].get(attr, []), default=['All']) for attr in project['attributes']}
         dist_filters = st.multiselect("Distribution", ['All'] + [d.replace('DIST ', '') for d in project['distributions']], default=['All']) if project['distributions'] else []
