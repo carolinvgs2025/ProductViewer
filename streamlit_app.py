@@ -841,8 +841,6 @@ def show_grid_page():
             if is_admin:
                 st.header("🔗 Share Project")
                 with st.expander("Generate Client Link"):
-                    # 1. Update this to include 'https://' 
-                    # 2. DOUBLE CHECK: Is 'visualgridvg' definitely what is in your address bar?
                     base_url = "https://visualgridvg.streamlit.app/" 
                     
                     client_link = f"{base_url}?project={project_id}&mode=client"
