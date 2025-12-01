@@ -829,18 +829,17 @@ def show_grid_page():
     # --- SIDEBAR: SHARE & FILTERS ---
     with st.sidebar:
         # 1. Share Section (Admin Only)
-        ''' ADD BACK WHEN READY TO HAVE SHARE PROJECT 
+        #ADD BACK WHEN READY TO HAVE SHARE PROJECT 
+        """
         if is_admin:
             st.header("🔗 Share Project")
             with st.expander("Generate Client Link"):
-                # URL must exactly match your browser URL including https://
-                base_url = "https://visualgridvg.streamlit.app/" 
-                
+                base_url = "https://visualgridvg.streamlit.app/"  # URL must exactly match your browser URL including https://
                 client_link = f"{base_url}?project={project_id}&mode=client"
                 st.code(client_link, language="text")
                 st.info("⚠️ This link opens the project in 'Read-Only' mode.")
             st.divider()
-        '''
+        """
 
         # 2. Filters Section (Now correctly indented)
         st.header("🔍 Filters")
