@@ -3,9 +3,9 @@
 Firestore/Storage integration for persisting projects.
 - No per-user filtering.
 - Debounced saves.
-- Offloads 'products_data' to JSON in Storage (bypasses 1MB limit).
-- FIXED: Generates valid HTTPS URLs even for Uniform Bucket Level Access buckets.
-- FIXED: Includes missing app-level helper functions.
+- Offloads 'products_data' AND 'filter_options' to JSON in Storage (bypasses 1MB limit).
+- Robust handling of image URLs to prevent "No Image" errors.
+- Includes all app-level helpers.
 """
 
 from __future__ import annotations
@@ -92,7 +92,6 @@ class ProjectFirestoreManager:
             pass
             
         # ALWAYS return the HTTP URL, never gs://. Browsers need HTTPS.
-        # We manually construct it to be safe, or use blob.public_url
         return f"https://storage.googleapis.com/{self.bucket_name}/{urllib.parse.quote(blob_path)}"
 
     def _download_blob_bytes(self, blob_path):
@@ -107,6 +106,8 @@ class ProjectFirestoreManager:
 
         try:
             # 1. Prepare Base Data
+            # IMPORTANT: We purposefully set 'filter_options' and 'products_data' to empty
+            # in Firestore to save space. They go into the JSON file now.
             firestore_data = {
                 "id": project_id,
                 "name": project_data.get("name", ""),
@@ -115,12 +116,12 @@ class ProjectFirestoreManager:
                 "last_modified": datetime.now().isoformat(),
                 "attributes": project_data.get("attributes", []),
                 "distributions": project_data.get("distributions", []),
-                "filter_options": project_data.get("filter_options", {}),
+                "filter_options": {}, # CLEARED to save space (moved to JSON)
                 "pending_changes": project_data.get("pending_changes", {}),
                 "excel_filename": project_data.get("excel_filename"),
             }
 
-            # 2. Process Images & Preserve Legacy Mappings
+            # 2. Process Images
             image_mappings_raw = project_data.get("image_mappings", {})
             image_mappings = {}
             
@@ -140,7 +141,6 @@ class ProjectFirestoreManager:
                 img_info = pcopy.pop("image_data", None)
 
                 if img_info:
-                    # Logic to handle new image uploads
                     if isinstance(img_info, tuple) and len(img_info) == 2:
                         image_name, img_bytes = img_info
                     elif isinstance(img_info, bytes):
@@ -152,27 +152,30 @@ class ProjectFirestoreManager:
                     pid_lower = str(pcopy.get("product_id", "")).lower().strip()
                     if not pid_lower: products_for_storage.append(pcopy); continue
 
-                    # Delete old image if it exists
                     if pid_lower in image_mappings:
                         old_path = image_mappings[pid_lower].get("blob_path")
                         if old_path: 
                             try: self._bucket().blob(old_path).delete()
                             except: pass
                     
-                    # Upload new image
                     blob_path = self._image_blob_path(project_id, image_name)
                     content_type = "image/png" if image_name.lower().endswith(".png") else "image/jpeg"
                     base_url = self._upload_bytes(blob_path, img_bytes, content_type)
                     
-                    # Update URL and Mapping with cache busting
                     pcopy["image_url"] = f"{base_url}?t={int(time.time())}"
                     image_mappings[pid_lower] = {"blob_path": blob_path, "public_url": pcopy["image_url"]}
 
                 products_for_storage.append(pcopy)
 
-            # 3. Offload Products to JSON (Bypass 1MB limit)
+            # 3. Offload Large Data to JSON (Bypass 1MB limit)
             try:
-                products_json = json.dumps(products_for_storage)
+                # NEW: We bundle products AND filter_options into the JSON
+                large_data_payload = {
+                    "products": products_for_storage,
+                    "filter_options": project_data.get("filter_options", {})
+                }
+                
+                products_json = json.dumps(large_data_payload)
                 json_path = f"projects/{project_id}/products_data.json"
                 self._upload_bytes(json_path, products_json.encode('utf-8'), "application/json")
                 
@@ -210,47 +213,51 @@ class ProjectFirestoreManager:
             if not doc.exists: return None
             data = doc.to_dict() or {}
 
-            # 1. Load Products (From JSON or Legacy List)
+            # 1. Load Offloaded Data (JSON)
             blob_path = data.get("products_blob_path")
             if blob_path:
                 json_bytes = self._download_blob_bytes(blob_path)
-                data["products_data"] = json.loads(json_bytes.decode('utf-8')) if json_bytes else []
+                if json_bytes:
+                    loaded_json = json.loads(json_bytes.decode('utf-8'))
+                    
+                    # Handle V2 format (Dict with keys) vs V1 format (List of products)
+                    if isinstance(loaded_json, dict) and "products" in loaded_json:
+                        data["products_data"] = loaded_json["products"]
+                        # Restore filter_options from JSON if present
+                        if "filter_options" in loaded_json:
+                            data["filter_options"] = loaded_json["filter_options"]
+                    elif isinstance(loaded_json, list):
+                        # Backward compat for the brief V1 phase
+                        data["products_data"] = loaded_json
+                else:
+                    data["products_data"] = []
             else:
                 if "products_data" not in data: data["products_data"] = []
 
             # 2. Restore URLs (ROBUST METHOD)
             img_map = data.get("image_mappings", {})
             url_lookup = {}
-            
-            # Populate lookup from Firestore mappings
             for k, v in img_map.items():
                 if isinstance(v, dict) and "public_url" in v: url_lookup[k] = v["public_url"]
                 elif isinstance(v, str): url_lookup[k] = v
 
-            # 3. SELF-HEALING: If mappings missing, rebuild from loaded JSON data
-            # This handles cases where JSON has valid URLs but Firestore mappings were lost/empty
+            # 3. SELF-HEALING: Rebuild lookup from JSON if needed
             for p in data["products_data"]:
                 pid = str(p.get("product_id", "")).lower().strip()
                 if pid and p.get("image_url") and pid not in url_lookup:
                     url_lookup[pid] = p["image_url"]
-                    # Optionally rebuild image_mappings here if we wanted to sync back, 
-                    # but just using it for display is enough.
                     blob = _blob_path_from_url(p["image_url"], self.bucket_name)
                     if blob:
                         img_map[pid] = {"blob_path": blob, "public_url": p["image_url"]}
 
-            # 4. Apply URLs to product objects
+            # 4. Apply URLs
             for p in data["products_data"]:
                 pid = str(p.get("product_id", "")).lower().strip()
-                
-                # Only overwrite if we have a valid mapping
                 mapped_url = url_lookup.get(pid)
-                if mapped_url:
-                    p["image_url"] = mapped_url
-                
+                if mapped_url: p["image_url"] = mapped_url
                 p.pop("image_data", None)
 
-            data["image_mappings"] = img_map # Ensure memory state reflects healing
+            data["image_mappings"] = img_map
             data.pop("uploaded_images", None)
             return data
         except Exception as e:
@@ -263,7 +270,6 @@ class ProjectFirestoreManager:
             for d in docs:
                 v = d.to_dict() or {}
                 count = v.get("product_count", len(v.get("products_data", [])))
-                
                 items.append({
                     "id": v.get("id"),
                     "name": v.get("name", ""),
@@ -283,14 +289,11 @@ class ProjectFirestoreManager:
             doc = self.db.collection(self.collection_name).document(project_id).get()
             if doc.exists:
                 v = doc.to_dict() or {}
-                # Delete Images
                 for meta in v.get("image_mappings", {}).values():
                     path = meta.get("blob_path") if isinstance(meta, dict) else _blob_path_from_url(meta, self.bucket_name)
                     if path: 
                         try: self._bucket().blob(path).delete()
                         except: pass
-                
-                # Delete Files
                 for key in ["excel_blob_path", "products_blob_path"]:
                     if v.get(key):
                         try: self._bucket().blob(v[key]).delete()
@@ -311,11 +314,10 @@ def integrate_with_streamlit_app() -> Optional[ProjectFirestoreManager]:
         return st.session_state.firestore_manager
 
     try:
-        # Local JSON
         if os.path.exists("serviceAccount.json"):
             bucket_name = os.environ.get("FIREBASE_STORAGE_BUCKET") or st.secrets.get("firebase", {}).get("bucket_name")
             if not bucket_name:
-                st.error("Missing bucket_name. Set env FIREBASE_STORAGE_BUCKET or secrets [firebase].bucket_name")
+                st.error("Missing bucket_name.")
                 st.stop()
             mgr = ProjectFirestoreManager(
                 firebase_config_json_path="serviceAccount.json",
@@ -324,27 +326,13 @@ def integrate_with_streamlit_app() -> Optional[ProjectFirestoreManager]:
             st.session_state.firestore_manager = mgr
             return mgr
 
-        # Streamlit secrets
         if "firebase" in st.secrets:
             fb = dict(st.secrets["firebase"])
-
-            required = [
-                "type", "project_id", "private_key_id", "private_key",
-                "client_email", "client_id", "auth_uri", "token_uri", "bucket_name"
-            ]
-            missing = [k for k in required if not fb.get(k)]
-            if missing:
-                st.error(f"❌ Missing keys in [firebase] secrets: {missing}")
-                st.stop()
-
             try:
                 fb["private_key"] = _normalize_pem(str(fb["private_key"]))
                 creds = service_account.Credentials.from_service_account_info(fb)
-            except ValueError as e:
-                 st.error(f"❌ Error processing Firebase private key: {e}")
-                 st.stop()
             except Exception as e:
-                 st.error(f"❌ Unexpected error initializing Firebase credentials: {e}")
+                 st.error(f"Firebase Credentials Error: {e}")
                  st.stop()
 
             mgr = ProjectFirestoreManager(
