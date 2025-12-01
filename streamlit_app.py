@@ -829,22 +829,19 @@ def show_grid_page():
     # --- SIDEBAR: SHARE & FILTERS ---
     with st.sidebar:
         # 1. Share Section (Admin Only)
-        #ADD BACK WHEN READY TO HAVE SHARE PROJECT 
-        '''
         if is_admin:
-            st.header("🔗 Share Project")
+            st.header("🔗 Share Project - NOT READY FOR FULL USE")
             with st.expander("Generate Client Link"):
                 base_url = "https://visualgridvg.streamlit.app/"  # URL must exactly match your browser URL including https://
                 client_link = f"{base_url}?project={project_id}&mode=client"
                 st.code(client_link, language="text")
                 st.info("⚠️ This link opens the project in 'Read-Only' mode.")
             st.divider()
-        '''
-
+            
         # 2. Filters Section (Now correctly indented)
         st.header("🔍 Filters")
         attribute_filters = {attr: st.multiselect(attr.replace('ATT ', ''), ['All'] + project['filter_options'].get(attr, []), default=['All']) for attr in project['attributes']}
-        dist_filters = st.multiselect("Distribution", ['All'] + [d.replace('DIST ', '') for d in project['distributions']], default=['All']) if project['distributions'] else [
+        dist_filters = st.multiselect("Distribution", ['All'] + [d.replace('DIST ', '') for d in project['distributions']], default=['All']) if project['distributions'] else []
 
     # --- FILTERING, SORTING, AND DISPLAY ---
     filtered_products = apply_filters(project['products_data'], attribute_filters, dist_filters)
