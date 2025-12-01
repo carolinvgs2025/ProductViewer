@@ -3,8 +3,8 @@
 Firestore/Storage integration for persisting projects.
 - No per-user filtering.
 - Debounced saves.
-- NEW: Offloads 'products_data' to JSON in Storage (bypasses 1MB limit).
-- NEW: Saves 'product_count' explicitly so lists remain accurate.
+- Offloads 'products_data' to JSON in Storage (bypasses 1MB limit).
+- Robust handling of image URLs to prevent "No Image" errors.
 """
 
 from __future__ import annotations
@@ -19,8 +19,9 @@ import streamlit as st
 from google.cloud import firestore, storage
 from google.oauth2 import service_account
 
-# ... [Keep your existing helper functions: _blob_path_from_url and _normalize_pem] ...
-# (Copy them from your previous file or see below if you need them re-pasted)
+# =========================
+# Small utilities
+# =========================
 
 def _blob_path_from_url(url: str, bucket_name: str) -> Optional[str]:
     if not isinstance(url, str): return None
@@ -42,6 +43,11 @@ def _normalize_pem(pem: str) -> str:
     pem = (pem or "").replace("\r", "")
     if "\\n" in pem and "\n" not in pem: pem = pem.replace("\\n", "\n")
     return pem.strip()
+
+
+# =========================
+# Core Manager
+# =========================
 
 class ProjectFirestoreManager:
     def __init__(self, *, firebase_config_json_path=None, creds=None, project_id=None, bucket_name=None):
@@ -96,10 +102,20 @@ class ProjectFirestoreManager:
                 "excel_filename": project_data.get("excel_filename"),
             }
 
-            # 2. Process Images
+            # 2. Process Images & Preserve Legacy Mappings
             image_mappings_raw = project_data.get("image_mappings", {})
-            image_mappings = {str(k).lower().strip(): v for k, v in image_mappings_raw.items() if k and isinstance(v, dict)}
+            image_mappings = {}
             
+            # Robustly migrate legacy mappings instead of dropping them
+            for k, v in image_mappings_raw.items():
+                key = str(k).lower().strip()
+                if not key: continue
+                if isinstance(v, dict):
+                    image_mappings[key] = v
+                elif isinstance(v, str):
+                    # Convert legacy string URL to dict format
+                    image_mappings[key] = {"public_url": v}
+
             products_for_storage = []
             
             for product in project_data.get("products_data", []):
@@ -119,18 +135,19 @@ class ProjectFirestoreManager:
                     pid_lower = str(pcopy.get("product_id", "")).lower().strip()
                     if not pid_lower: products_for_storage.append(pcopy); continue
 
-                    # Delete old
+                    # Delete old image if it exists
                     if pid_lower in image_mappings:
                         old_path = image_mappings[pid_lower].get("blob_path")
                         if old_path: 
                             try: self._bucket().blob(old_path).delete()
                             except: pass
                     
-                    # Upload new
+                    # Upload new image
                     blob_path = self._image_blob_path(project_id, image_name)
                     content_type = "image/png" if image_name.lower().endswith(".png") else "image/jpeg"
                     base_url = self._upload_bytes(blob_path, img_bytes, content_type)
                     
+                    # Update URL and Mapping
                     pcopy["image_url"] = f"{base_url}?t={int(time.time())}"
                     image_mappings[pid_lower] = {"blob_path": blob_path, "public_url": pcopy["image_url"]}
 
@@ -144,7 +161,6 @@ class ProjectFirestoreManager:
                 
                 firestore_data["products_blob_path"] = json_path
                 firestore_data["products_data"] = [] # Clear from DB
-                # FIX: Save count specifically so list view works
                 firestore_data["product_count"] = len(products_for_storage) 
                 
             except Exception as e:
@@ -185,21 +201,28 @@ class ProjectFirestoreManager:
             else:
                 if "products_data" not in data: data["products_data"] = []
 
-            # 2. Restore URLs
+            # 2. Restore URLs (ROBUST METHOD)
             img_map = data.get("image_mappings", {})
             url_lookup = {}
             for k, v in img_map.items():
                 if isinstance(v, dict) and "public_url" in v: url_lookup[k] = v["public_url"]
                 elif isinstance(v, str): url_lookup[k] = v
 
-            # Fallback legacy lookup
-            if not url_lookup:
+            # Fallback: if mappings are missing, try to scrape URLs from legacy product list if present
+            if not url_lookup and not blob_path:
                 for p in data["products_data"]:
                     if p.get("image_url"): url_lookup[str(p.get("product_id")).lower().strip()] = p["image_url"]
 
+            # Apply URLs
             for p in data["products_data"]:
                 pid = str(p.get("product_id", "")).lower().strip()
-                p["image_url"] = url_lookup.get(pid)
+                
+                # FIX: Only overwrite if we actually found a mapping. 
+                # Otherwise, keep the URL that was in the JSON file.
+                mapped_url = url_lookup.get(pid)
+                if mapped_url:
+                    p["image_url"] = mapped_url
+                
                 p.pop("image_data", None)
 
             data.pop("uploaded_images", None)
@@ -213,7 +236,6 @@ class ProjectFirestoreManager:
             items = []
             for d in docs:
                 v = d.to_dict() or {}
-                # FIX: Use saved count OR legacy list length
                 count = v.get("product_count", len(v.get("products_data", [])))
                 
                 items.append({
@@ -253,21 +275,18 @@ class ProjectFirestoreManager:
         except Exception as e:
             st.error(f"Error deleting: {e}"); return False
 
-# ... [Keep integrate_with_streamlit_app and other bottom helpers unchanged] ...
+
+# =========================
+# App Integration Helpers
+# =========================
+
 def integrate_with_streamlit_app() -> Optional[ProjectFirestoreManager]:
-    """
-    Initialize a singleton ProjectFirestoreManager and put it in session_state.
-    Requires bucket_name in secrets when using Streamlit secrets.
-    """
     if "firestore_manager" in st.session_state and st.session_state.firestore_manager:
         return st.session_state.firestore_manager
 
     try:
-        # st.info("🔍 Checking Firebase configuration...") # Less verbose
-
         # Local JSON
         if os.path.exists("serviceAccount.json"):
-            # st.info("📄 Found local serviceAccount.json")
             bucket_name = os.environ.get("FIREBASE_STORAGE_BUCKET") or st.secrets.get("firebase", {}).get("bucket_name")
             if not bucket_name:
                 st.error("Missing bucket_name. Set env FIREBASE_STORAGE_BUCKET or secrets [firebase].bucket_name")
@@ -276,13 +295,11 @@ def integrate_with_streamlit_app() -> Optional[ProjectFirestoreManager]:
                 firebase_config_json_path="serviceAccount.json",
                 bucket_name=bucket_name,
             )
-            # st.success("✅ Firestore initialized with local JSON")
             st.session_state.firestore_manager = mgr
             return mgr
 
         # Streamlit secrets
         if "firebase" in st.secrets:
-            # st.info("🔑 Found Firebase secrets")
             fb = dict(st.secrets["firebase"])
 
             required = [
@@ -304,18 +321,16 @@ def integrate_with_streamlit_app() -> Optional[ProjectFirestoreManager]:
                  st.error(f"❌ Unexpected error initializing Firebase credentials: {e}")
                  st.stop()
 
-
             mgr = ProjectFirestoreManager(
                 creds=creds,
                 project_id=fb["project_id"],
-                bucket_name=fb["bucket_name"],  # e.g. your-project.firebasestorage.app
+                bucket_name=fb["bucket_name"],
             )
-            # st.success("✅ Firestore initialized with Streamlit secrets")
             st.session_state.firestore_manager = mgr
             return mgr
 
         st.warning("⚠️ Firebase credentials not configured.")
-        st.stop() # Stop execution if no credentials found
+        st.stop()
 
     except Exception as e:
         st.error(f"❌ Firebase init failed: {e}")
@@ -323,69 +338,43 @@ def integrate_with_streamlit_app() -> Optional[ProjectFirestoreManager]:
         st.session_state.firestore_manager = None
         return None
 
-# =========================
-# Missing App-level Helpers
-# =========================
-
 def load_project_summaries_from_cloud() -> int:
-    """
-    Load only project summaries (no products/images) into session_state.project_summaries.
-    Does NOT populate session_state.projects.
-    """
     mgr: ProjectFirestoreManager = st.session_state.get("firestore_manager")
     if not mgr:
         st.session_state.project_summaries = []
         return 0
-
-    summaries = mgr.list_projects()  # already summaries, no images
+    summaries = mgr.list_projects()
     st.session_state.project_summaries = summaries or []
     return len(st.session_state.project_summaries)
 
-
 def ensure_project_loaded(project_id: str) -> bool:
-    """
-    Ensure a full project (with products/images) exists in session_state.projects[project_id].
-    Fetches from Firestore if not already present. Returns True on success.
-    """
-    if "projects" not in st.session_state:
-        st.session_state.projects = {}
-
-    if project_id in st.session_state.projects:
-        return True
+    if "projects" not in st.session_state: st.session_state.projects = {}
+    if project_id in st.session_state.projects: return True
 
     mgr: ProjectFirestoreManager = st.session_state.get("firestore_manager")
-    if not mgr:
-        return False
+    if not mgr: return False
     
     with st.spinner(f"Loading project {project_id}..."):
         data = mgr.load_project(project_id)
         if not data:
             st.error("Failed to load project from Firestore.")
             return False
-
         st.session_state.projects[project_id] = data
         return True
 
-
 def save_current_project_to_cloud() -> bool | Dict:
-    """Save the active project one time and return the result."""
     mgr: ProjectFirestoreManager = st.session_state.get("firestore_manager")
     proj_id: Optional[str] = st.session_state.get("current_project")
-    if not mgr or not proj_id:
-        return False
+    if not mgr or not proj_id: return False
     project = st.session_state.projects.get(proj_id)
-    if not project:
-        return False
+    if not project: return False
 
     result = mgr.save_project(proj_id, project)
     if result is not False:
         st.success("☁️ Project saved to cloud!")
-    
     return result
 
-
 def get_or_create_user_id() -> str:
-    """Legacy helper to maintain compatibility with your app; not used for filtering."""
     if "user_id" not in st.session_state:
         import uuid
         st.session_state.user_id = str(uuid.uuid4())
