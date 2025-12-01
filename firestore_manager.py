@@ -4,7 +4,7 @@ Firestore/Storage integration for persisting projects.
 - No per-user filtering.
 - Debounced saves.
 - Offloads 'products_data' AND 'filter_options' to JSON in Storage (bypasses 1MB limit).
-- Robust handling of image URLs to prevent "No Image" errors.
+- OPTIMIZED: Assumes Public Bucket (allUsers=Viewer) to avoid ACL rate limits on large uploads.
 - Includes all app-level helpers.
 """
 
@@ -39,10 +39,8 @@ def _blob_path_from_url(url: str, bucket_name: str) -> Optional[str]:
     # Handle https:// format
     if "storage.googleapis.com" in u:
         try:
-            # Decode URL encodings (e.g. %20 -> space)
             decoded = urllib.parse.unquote(u)
             after = decoded.split("storage.googleapis.com/", 1)[1]
-            # Handle potential bucket name in path
             parts = after.split("/", 1)
             if parts[0] == bucket_name:
                 return parts[1]
@@ -80,18 +78,13 @@ class ProjectFirestoreManager:
     def _excel_blob_path(self, pid, name): return f"projects/{pid}/{name}"
 
     def _upload_bytes(self, blob_path, data, content_type):
-        """Uploads bytes and returns a valid HTTPS URL."""
+        """Uploads bytes and returns a valid HTTPS URL. assumes bucket is public."""
         blob = self._bucket().blob(blob_path)
         blob.upload_from_string(data, content_type=content_type)
         
-        try: 
-            # Try to set ACLs (will fail on Uniform Bucket Level Access)
-            blob.make_public()
-        except: 
-            # Ignore ACL errors; we rely on the bucket being public or Signed URLs
-            pass
+        # REMOVED: blob.make_public() to avoid rate limits on large loops.
+        # Ensure your bucket has "allUsers" -> "Storage Object Viewer" permission.
             
-        # ALWAYS return the HTTP URL, never gs://. Browsers need HTTPS.
         return f"https://storage.googleapis.com/{self.bucket_name}/{urllib.parse.quote(blob_path)}"
 
     def _download_blob_bytes(self, blob_path):
@@ -105,9 +98,7 @@ class ProjectFirestoreManager:
         self._saving_in_progress = True
 
         try:
-            # 1. Prepare Base Data
-            # IMPORTANT: We purposefully set 'filter_options' and 'products_data' to empty
-            # in Firestore to save space. They go into the JSON file now.
+            # 1. Prepare Base Data (Cleared heavy fields)
             firestore_data = {
                 "id": project_id,
                 "name": project_data.get("name", ""),
@@ -116,7 +107,7 @@ class ProjectFirestoreManager:
                 "last_modified": datetime.now().isoformat(),
                 "attributes": project_data.get("attributes", []),
                 "distributions": project_data.get("distributions", []),
-                "filter_options": {}, # CLEARED to save space (moved to JSON)
+                "filter_options": {}, # CLEARED
                 "pending_changes": project_data.get("pending_changes", {}),
                 "excel_filename": project_data.get("excel_filename"),
             }
@@ -125,14 +116,11 @@ class ProjectFirestoreManager:
             image_mappings_raw = project_data.get("image_mappings", {})
             image_mappings = {}
             
-            # Robustly migrate legacy mappings
             for k, v in image_mappings_raw.items():
                 key = str(k).lower().strip()
                 if not key: continue
-                if isinstance(v, dict):
-                    image_mappings[key] = v
-                elif isinstance(v, str):
-                    image_mappings[key] = {"public_url": v}
+                if isinstance(v, dict): image_mappings[key] = v
+                elif isinstance(v, str): image_mappings[key] = {"public_url": v}
 
             products_for_storage = []
             
@@ -152,6 +140,7 @@ class ProjectFirestoreManager:
                     pid_lower = str(pcopy.get("product_id", "")).lower().strip()
                     if not pid_lower: products_for_storage.append(pcopy); continue
 
+                    # Clean up old image
                     if pid_lower in image_mappings:
                         old_path = image_mappings[pid_lower].get("blob_path")
                         if old_path: 
@@ -160,6 +149,8 @@ class ProjectFirestoreManager:
                     
                     blob_path = self._image_blob_path(project_id, image_name)
                     content_type = "image/png" if image_name.lower().endswith(".png") else "image/jpeg"
+                    
+                    # Upload (No make_public call)
                     base_url = self._upload_bytes(blob_path, img_bytes, content_type)
                     
                     pcopy["image_url"] = f"{base_url}?t={int(time.time())}"
@@ -167,9 +158,8 @@ class ProjectFirestoreManager:
 
                 products_for_storage.append(pcopy)
 
-            # 3. Offload Large Data to JSON (Bypass 1MB limit)
+            # 3. Offload Large Data
             try:
-                # NEW: We bundle products AND filter_options into the JSON
                 large_data_payload = {
                     "products": products_for_storage,
                     "filter_options": project_data.get("filter_options", {})
@@ -180,7 +170,7 @@ class ProjectFirestoreManager:
                 self._upload_bytes(json_path, products_json.encode('utf-8'), "application/json")
                 
                 firestore_data["products_blob_path"] = json_path
-                firestore_data["products_data"] = [] # Clear from DB
+                firestore_data["products_data"] = [] 
                 firestore_data["product_count"] = len(products_for_storage) 
                 
             except Exception as e:
@@ -213,44 +203,37 @@ class ProjectFirestoreManager:
             if not doc.exists: return None
             data = doc.to_dict() or {}
 
-            # 1. Load Offloaded Data (JSON)
+            # 1. Load Offloaded Data
             blob_path = data.get("products_blob_path")
             if blob_path:
                 json_bytes = self._download_blob_bytes(blob_path)
                 if json_bytes:
                     loaded_json = json.loads(json_bytes.decode('utf-8'))
-                    
-                    # Handle V2 format (Dict with keys) vs V1 format (List of products)
                     if isinstance(loaded_json, dict) and "products" in loaded_json:
                         data["products_data"] = loaded_json["products"]
-                        # Restore filter_options from JSON if present
                         if "filter_options" in loaded_json:
                             data["filter_options"] = loaded_json["filter_options"]
                     elif isinstance(loaded_json, list):
-                        # Backward compat for the brief V1 phase
                         data["products_data"] = loaded_json
                 else:
                     data["products_data"] = []
             else:
                 if "products_data" not in data: data["products_data"] = []
 
-            # 2. Restore URLs (ROBUST METHOD)
+            # 2. Restore URLs & Self-Heal
             img_map = data.get("image_mappings", {})
             url_lookup = {}
             for k, v in img_map.items():
                 if isinstance(v, dict) and "public_url" in v: url_lookup[k] = v["public_url"]
                 elif isinstance(v, str): url_lookup[k] = v
 
-            # 3. SELF-HEALING: Rebuild lookup from JSON if needed
             for p in data["products_data"]:
                 pid = str(p.get("product_id", "")).lower().strip()
                 if pid and p.get("image_url") and pid not in url_lookup:
                     url_lookup[pid] = p["image_url"]
                     blob = _blob_path_from_url(p["image_url"], self.bucket_name)
-                    if blob:
-                        img_map[pid] = {"blob_path": blob, "public_url": p["image_url"]}
+                    if blob: img_map[pid] = {"blob_path": blob, "public_url": p["image_url"]}
 
-            # 4. Apply URLs
             for p in data["products_data"]:
                 pid = str(p.get("product_id", "")).lower().strip()
                 mapped_url = url_lookup.get(pid)
@@ -303,7 +286,6 @@ class ProjectFirestoreManager:
             return True
         except Exception as e:
             st.error(f"Error deleting: {e}"); return False
-
 
 # =========================
 # App Integration Helpers
