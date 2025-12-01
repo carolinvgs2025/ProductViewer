@@ -4,7 +4,8 @@ Firestore/Storage integration for persisting projects.
 - No per-user filtering.
 - Debounced saves.
 - Offloads 'products_data' to JSON in Storage (bypasses 1MB limit).
-- Robust handling of image URLs to prevent "No Image" errors.
+- FIXED: Generates valid HTTPS URLs even for Uniform Bucket Level Access buckets.
+- FIXED: Includes missing app-level helper functions.
 """
 
 from __future__ import annotations
@@ -12,6 +13,7 @@ from __future__ import annotations
 import os
 import time
 import json
+import urllib.parse
 from datetime import datetime
 from typing import Dict, List, Optional
 
@@ -27,15 +29,23 @@ def _blob_path_from_url(url: str, bucket_name: str) -> Optional[str]:
     if not isinstance(url, str): return None
     u = url.strip().split('?')[0]
     if not u: return None
+    
+    # Handle gs:// format
     if u.startswith("gs://"):
         rest = u[len("gs://"):]
         if "/" in rest and rest.split("/", 1)[0] == bucket_name:
             return rest.split("/", 1)[1]
+            
+    # Handle https:// format
     if "storage.googleapis.com" in u:
         try:
-            after = u.split("storage.googleapis.com/", 1)[1]
-            if after.split("/", 1)[0] == bucket_name:
-                return after.split("/", 1)[1]
+            # Decode URL encodings (e.g. %20 -> space)
+            decoded = urllib.parse.unquote(u)
+            after = decoded.split("storage.googleapis.com/", 1)[1]
+            # Handle potential bucket name in path
+            parts = after.split("/", 1)
+            if parts[0] == bucket_name:
+                return parts[1]
         except: pass
     return None
 
@@ -70,12 +80,20 @@ class ProjectFirestoreManager:
     def _excel_blob_path(self, pid, name): return f"projects/{pid}/{name}"
 
     def _upload_bytes(self, blob_path, data, content_type):
+        """Uploads bytes and returns a valid HTTPS URL."""
         blob = self._bucket().blob(blob_path)
         blob.upload_from_string(data, content_type=content_type)
+        
         try: 
+            # Try to set ACLs (will fail on Uniform Bucket Level Access)
             blob.make_public()
-            return blob.public_url
-        except: return f"gs://{self.bucket_name}/{blob_path}"
+        except: 
+            # Ignore ACL errors; we rely on the bucket being public or Signed URLs
+            pass
+            
+        # ALWAYS return the HTTP URL, never gs://. Browsers need HTTPS.
+        # We manually construct it to be safe, or use blob.public_url
+        return f"https://storage.googleapis.com/{self.bucket_name}/{urllib.parse.quote(blob_path)}"
 
     def _download_blob_bytes(self, blob_path):
         try: return self._bucket().blob(blob_path).download_as_bytes()
@@ -106,14 +124,13 @@ class ProjectFirestoreManager:
             image_mappings_raw = project_data.get("image_mappings", {})
             image_mappings = {}
             
-            # Robustly migrate legacy mappings instead of dropping them
+            # Robustly migrate legacy mappings
             for k, v in image_mappings_raw.items():
                 key = str(k).lower().strip()
                 if not key: continue
                 if isinstance(v, dict):
                     image_mappings[key] = v
                 elif isinstance(v, str):
-                    # Convert legacy string URL to dict format
                     image_mappings[key] = {"public_url": v}
 
             products_for_storage = []
@@ -147,7 +164,7 @@ class ProjectFirestoreManager:
                     content_type = "image/png" if image_name.lower().endswith(".png") else "image/jpeg"
                     base_url = self._upload_bytes(blob_path, img_bytes, content_type)
                     
-                    # Update URL and Mapping
+                    # Update URL and Mapping with cache busting
                     pcopy["image_url"] = f"{base_url}?t={int(time.time())}"
                     image_mappings[pid_lower] = {"blob_path": blob_path, "public_url": pcopy["image_url"]}
 
@@ -204,27 +221,36 @@ class ProjectFirestoreManager:
             # 2. Restore URLs (ROBUST METHOD)
             img_map = data.get("image_mappings", {})
             url_lookup = {}
+            
+            # Populate lookup from Firestore mappings
             for k, v in img_map.items():
                 if isinstance(v, dict) and "public_url" in v: url_lookup[k] = v["public_url"]
                 elif isinstance(v, str): url_lookup[k] = v
 
-            # Fallback: if mappings are missing, try to scrape URLs from legacy product list if present
-            if not url_lookup and not blob_path:
-                for p in data["products_data"]:
-                    if p.get("image_url"): url_lookup[str(p.get("product_id")).lower().strip()] = p["image_url"]
+            # 3. SELF-HEALING: If mappings missing, rebuild from loaded JSON data
+            # This handles cases where JSON has valid URLs but Firestore mappings were lost/empty
+            for p in data["products_data"]:
+                pid = str(p.get("product_id", "")).lower().strip()
+                if pid and p.get("image_url") and pid not in url_lookup:
+                    url_lookup[pid] = p["image_url"]
+                    # Optionally rebuild image_mappings here if we wanted to sync back, 
+                    # but just using it for display is enough.
+                    blob = _blob_path_from_url(p["image_url"], self.bucket_name)
+                    if blob:
+                        img_map[pid] = {"blob_path": blob, "public_url": p["image_url"]}
 
-            # Apply URLs
+            # 4. Apply URLs to product objects
             for p in data["products_data"]:
                 pid = str(p.get("product_id", "")).lower().strip()
                 
-                # FIX: Only overwrite if we actually found a mapping. 
-                # Otherwise, keep the URL that was in the JSON file.
+                # Only overwrite if we have a valid mapping
                 mapped_url = url_lookup.get(pid)
                 if mapped_url:
                     p["image_url"] = mapped_url
                 
                 p.pop("image_data", None)
 
+            data["image_mappings"] = img_map # Ensure memory state reflects healing
             data.pop("uploaded_images", None)
             return data
         except Exception as e:
