@@ -829,6 +829,7 @@ def show_grid_page():
     # --- SIDEBAR: SHARE & FILTERS ---
     with st.sidebar:
         # 1. Share Section (Admin Only)
+        """ ADD BACK WHEN READY TO HAVE SHARE PROJECT 
         if is_admin:
             st.header("🔗 Share Project")
             with st.expander("Generate Client Link"):
@@ -839,6 +840,7 @@ def show_grid_page():
                 st.code(client_link, language="text")
                 st.info("⚠️ This link opens the project in 'Read-Only' mode.")
             st.divider()
+        """
 
         # 2. Filters Section (Now correctly indented)
         st.header("🔍 Filters")
