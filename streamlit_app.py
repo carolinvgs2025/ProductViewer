@@ -830,7 +830,7 @@ def show_grid_page():
     with st.sidebar:
         # 1. Share Section (Admin Only)
         #ADD BACK WHEN READY TO HAVE SHARE PROJECT 
-        """
+        '''
         if is_admin:
             st.header("🔗 Share Project")
             with st.expander("Generate Client Link"):
@@ -839,12 +839,12 @@ def show_grid_page():
                 st.code(client_link, language="text")
                 st.info("⚠️ This link opens the project in 'Read-Only' mode.")
             st.divider()
-        """
+        '''
 
         # 2. Filters Section (Now correctly indented)
         st.header("🔍 Filters")
         attribute_filters = {attr: st.multiselect(attr.replace('ATT ', ''), ['All'] + project['filter_options'].get(attr, []), default=['All']) for attr in project['attributes']}
-        dist_filters = st.multiselect("Distribution", ['All'] + [d.replace('DIST ', '') for d in project['distributions']], default=['All']) if project['distributions'] else []
+        dist_filters = st.multiselect("Distribution", ['All'] + [d.replace('DIST ', '') for d in project['distributions']], default=['All']) if project['distributions'] else [
 
     # --- FILTERING, SORTING, AND DISPLAY ---
     filtered_products = apply_filters(project['products_data'], attribute_filters, dist_filters)
