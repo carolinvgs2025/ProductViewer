@@ -3,9 +3,9 @@
 Firestore/Storage integration for persisting projects.
 - No per-user filtering.
 - Debounced saves.
-- Offloads 'products_data' AND 'filter_options' to JSON in Storage (bypasses 1MB limit).
-- OPTIMIZED: Assumes Public Bucket (allUsers=Viewer) to avoid ACL rate limits on large uploads.
-- Includes all app-level helpers.
+- Offloads 'products_data' AND 'filter_options' to JSON in Storage.
+- OPTIMIZED: Assumes Public Bucket (allUsers=Viewer).
+- NEW: AUTO-REPAIR feature fixes broken 'gs://' links from old uploads on the fly.
 """
 
 from __future__ import annotations
@@ -81,10 +81,6 @@ class ProjectFirestoreManager:
         """Uploads bytes and returns a valid HTTPS URL. assumes bucket is public."""
         blob = self._bucket().blob(blob_path)
         blob.upload_from_string(data, content_type=content_type)
-        
-        # REMOVED: blob.make_public() to avoid rate limits on large loops.
-        # Ensure your bucket has "allUsers" -> "Storage Object Viewer" permission.
-            
         return f"https://storage.googleapis.com/{self.bucket_name}/{urllib.parse.quote(blob_path)}"
 
     def _download_blob_bytes(self, blob_path):
@@ -98,7 +94,7 @@ class ProjectFirestoreManager:
         self._saving_in_progress = True
 
         try:
-            # 1. Prepare Base Data (Cleared heavy fields)
+            # 1. Prepare Base Data
             firestore_data = {
                 "id": project_id,
                 "name": project_data.get("name", ""),
@@ -140,7 +136,6 @@ class ProjectFirestoreManager:
                     pid_lower = str(pcopy.get("product_id", "")).lower().strip()
                     if not pid_lower: products_for_storage.append(pcopy); continue
 
-                    # Clean up old image
                     if pid_lower in image_mappings:
                         old_path = image_mappings[pid_lower].get("blob_path")
                         if old_path: 
@@ -150,7 +145,7 @@ class ProjectFirestoreManager:
                     blob_path = self._image_blob_path(project_id, image_name)
                     content_type = "image/png" if image_name.lower().endswith(".png") else "image/jpeg"
                     
-                    # Upload (No make_public call)
+                    # Upload (Assumes Public Bucket)
                     base_url = self._upload_bytes(blob_path, img_bytes, content_type)
                     
                     pcopy["image_url"] = f"{base_url}?t={int(time.time())}"
@@ -220,24 +215,43 @@ class ProjectFirestoreManager:
             else:
                 if "products_data" not in data: data["products_data"] = []
 
-            # 2. Restore URLs & Self-Heal
+            # 2. Restore URLs
             img_map = data.get("image_mappings", {})
             url_lookup = {}
             for k, v in img_map.items():
                 if isinstance(v, dict) and "public_url" in v: url_lookup[k] = v["public_url"]
                 elif isinstance(v, str): url_lookup[k] = v
 
+            # 3. SELF-HEALING & AUTO-REPAIR
+            # This loops through every product. If the URL is missing OR looks like "gs://", 
+            # it reconstructs a valid https URL on the fly.
             for p in data["products_data"]:
                 pid = str(p.get("product_id", "")).lower().strip()
-                if pid and p.get("image_url") and pid not in url_lookup:
-                    url_lookup[pid] = p["image_url"]
-                    blob = _blob_path_from_url(p["image_url"], self.bucket_name)
-                    if blob: img_map[pid] = {"blob_path": blob, "public_url": p["image_url"]}
-
-            for p in data["products_data"]:
-                pid = str(p.get("product_id", "")).lower().strip()
+                
+                # Check mapping first
                 mapped_url = url_lookup.get(pid)
-                if mapped_url: p["image_url"] = mapped_url
+                
+                # If no mapping, check the product's saved URL
+                if not mapped_url:
+                    mapped_url = p.get("image_url")
+                
+                # --- THE REPAIR LOGIC ---
+                if mapped_url:
+                    # If it's a gs:// link (broken for browsers), fix it to https
+                    if mapped_url.startswith("gs://"):
+                        # Extract the path part: gs://bucket-name/projects/... -> projects/...
+                        try:
+                            clean_path = mapped_url.replace(f"gs://{self.bucket_name}/", "")
+                            mapped_url = f"https://storage.googleapis.com/{self.bucket_name}/{urllib.parse.quote(clean_path)}"
+                        except:
+                            pass # Keep original if parse fails
+
+                    # Save the fixed URL to the product object for display
+                    p["image_url"] = mapped_url
+                    
+                    # (Optional) Update lookup so we stay consistent in this session
+                    url_lookup[pid] = mapped_url
+                
                 p.pop("image_data", None)
 
             data["image_mappings"] = img_map
