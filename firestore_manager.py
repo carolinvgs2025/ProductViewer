@@ -322,3 +322,71 @@ def integrate_with_streamlit_app() -> Optional[ProjectFirestoreManager]:
         st.exception(e)
         st.session_state.firestore_manager = None
         return None
+
+# =========================
+# Missing App-level Helpers
+# =========================
+
+def load_project_summaries_from_cloud() -> int:
+    """
+    Load only project summaries (no products/images) into session_state.project_summaries.
+    Does NOT populate session_state.projects.
+    """
+    mgr: ProjectFirestoreManager = st.session_state.get("firestore_manager")
+    if not mgr:
+        st.session_state.project_summaries = []
+        return 0
+
+    summaries = mgr.list_projects()  # already summaries, no images
+    st.session_state.project_summaries = summaries or []
+    return len(st.session_state.project_summaries)
+
+
+def ensure_project_loaded(project_id: str) -> bool:
+    """
+    Ensure a full project (with products/images) exists in session_state.projects[project_id].
+    Fetches from Firestore if not already present. Returns True on success.
+    """
+    if "projects" not in st.session_state:
+        st.session_state.projects = {}
+
+    if project_id in st.session_state.projects:
+        return True
+
+    mgr: ProjectFirestoreManager = st.session_state.get("firestore_manager")
+    if not mgr:
+        return False
+    
+    with st.spinner(f"Loading project {project_id}..."):
+        data = mgr.load_project(project_id)
+        if not data:
+            st.error("Failed to load project from Firestore.")
+            return False
+
+        st.session_state.projects[project_id] = data
+        return True
+
+
+def save_current_project_to_cloud() -> bool | Dict:
+    """Save the active project one time and return the result."""
+    mgr: ProjectFirestoreManager = st.session_state.get("firestore_manager")
+    proj_id: Optional[str] = st.session_state.get("current_project")
+    if not mgr or not proj_id:
+        return False
+    project = st.session_state.projects.get(proj_id)
+    if not project:
+        return False
+
+    result = mgr.save_project(proj_id, project)
+    if result is not False:
+        st.success("☁️ Project saved to cloud!")
+    
+    return result
+
+
+def get_or_create_user_id() -> str:
+    """Legacy helper to maintain compatibility with your app; not used for filtering."""
+    if "user_id" not in st.session_state:
+        import uuid
+        st.session_state.user_id = str(uuid.uuid4())
+    return st.session_state.user_id
