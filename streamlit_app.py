@@ -1018,24 +1018,17 @@ def show_grid_page():
 
         # Admin-only tools (Excel Replace) remain protected
         if is_admin:
-            with h_col2:
-                st.markdown("<div><br></div>", unsafe_allow_html=True)
-                # This button is now visible to everyone (Clients & Admins) - assuming you kept the previous change
-                if st.button("📈 Summary View", use_container_width=True):
-                    st.session_state.page = 'summary'
-                    st.rerun()
-    
-                # --- DYNAMIC KEY: Ensures uploader clears after use ---
-                excel_ver_key = f"excel_ver_{project_id}"
-                if excel_ver_key not in st.session_state: 
-                    st.session_state[excel_ver_key] = 0
-                
-                new_excel = st.file_uploader(
-                    "Replace Source Grid", 
-                    type=['xlsx', 'xls'], 
-                    key=f"replace_{project_id}_{st.session_state[excel_ver_key]}", 
-                    label_visibility="collapsed"
-                )
+            # --- DYNAMIC KEY: Ensures uploader clears after use ---
+            excel_ver_key = f"excel_ver_{project_id}"
+            if excel_ver_key not in st.session_state: 
+                st.session_state[excel_ver_key] = 0
+            
+            new_excel = st.file_uploader(
+                "Replace Source Grid", 
+                type=['xlsx', 'xls'], 
+                key=f"replace_{project_id}_{st.session_state[excel_ver_key]}", 
+                label_visibility="collapsed"
+            )
     
     with h_col3:
         st.markdown("<div><br></div>", unsafe_allow_html=True)
