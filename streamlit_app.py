@@ -379,11 +379,10 @@ def apply_filters(products, attribute_filters, distribution_filters):
     return filtered_products
 
 def create_download_excel(project):
-    """Create Excel file with current changes for download, highlighting changes in yellow."""
+    """Create Excel file, highlighting ONLY the most recently applied changes."""
     if not project['products_data']:
         return None
     
-    # 1. Prepare Data Structure
     attributes = project['attributes']
     distributions = project['distributions']
     headers = ["Product ID", "Description"] + attributes + distributions + ["Price"]
@@ -393,7 +392,6 @@ def create_download_excel(project):
         row = [product["product_id"], product["description"]]
         row.extend(product["attributes"].get(attr, "") for attr in attributes)
         row.extend("X" if product["distribution"].get(dist, False) else "" for dist in distributions)
-        # Ensure price is a number for Excel math, even though we compare as strings
         try:
             p_val = float(product["price"]) if product["price"] else 0.0
         except:
@@ -403,48 +401,43 @@ def create_download_excel(project):
     
     df = pd.DataFrame(data, columns=headers)
     
-    # 2. Write to Excel and Apply Styles
+    from openpyxl.styles import PatternFill
     output = BytesIO()
-    # Note: We need PatternFill for the styling (imported from openpyxl.styles)
-    from openpyxl.styles import PatternFill 
-
+    
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
         df.to_excel(writer, index=False, sheet_name='Products')
-        
-        # Access the workbook and sheet to apply styles
         workbook = writer.book
         ws = writer.sheets['Products']
         yellow_fill = PatternFill(start_color="FFFF00", end_color="FFFF00", fill_type="solid")
         
-        # 3. Iterate Rows and Check for Changes
-        # Excel rows are 1-based. Header is Row 1. Data starts at Row 2.
+        # Retrieve the history of the last batch of applied changes
+        last_applied = project.get('last_applied_changes', {})
+        
         for i, product in enumerate(project['products_data']):
             excel_row = i + 2
             
+            # Get changes for this specific product ID (handle int vs string keys)
+            idx = product['original_index']
+            changes = last_applied.get(idx) or last_applied.get(str(idx)) or {}
+            
+            # If this product wasn't in the last batch, skip it
+            if not changes:
+                continue
+
             # --- Check Description (Column 2) ---
-            if product.get('description') != product.get('original_description'):
+            if 'description' in changes:
                 ws.cell(row=excel_row, column=2).fill = yellow_fill
             
             # --- Check Attributes (Columns 3 to 3+len(attrs)) ---
             for j, attr in enumerate(attributes):
-                col_idx = 3 + j
-                curr_val = product['attributes'].get(attr, "")
-                # Default to current if original is missing (handles newly added attrs)
-                orig_val = product['original_attributes'].get(attr, curr_val)
-                
-                if curr_val != orig_val:
+                if attr in changes:
+                    col_idx = 3 + j
                     ws.cell(row=excel_row, column=col_idx).fill = yellow_fill
             
             # --- Check Price (Last Column) ---
-            # Column index is 1 + 1 + len(attrs) + len(dists) + 1 = len(headers)
-            price_col = len(headers)
-            
-            # Compare as strings to avoid floating point mismatches
-            curr_price = str(product.get('price', '')).strip()
-            orig_price = str(product.get('original_price', '')).strip()
-            
-            if curr_price != orig_price:
-                 ws.cell(row=excel_row, column=price_col).fill = yellow_fill
+            if 'price' in changes:
+                price_col = len(headers)
+                ws.cell(row=excel_row, column=price_col).fill = yellow_fill
 
     return output.getvalue()
 
@@ -990,21 +983,33 @@ def show_grid_page():
         with action_cols[0]:
             if st.button("✅ Apply All Changes", type="primary", use_container_width=True):
                 with st.spinner("Applying..."):
+                    # --- NEW: Save pending changes to 'last_applied' history before clearing ---
+                    # This allows the Excel download to know what was just updated.
+                    project['last_applied_changes'] = project['pending_changes'].copy()
+                    
                     for product in project['products_data']:
-                        if product['original_index'] in project['pending_changes']:
+                        # Handle string/int key differences
+                        idx = product['original_index']
+                        changes = project['pending_changes'].get(idx) or project['pending_changes'].get(str(idx))
+                        
+                        if changes:
                             product['original_description'] = product['description']
                             product['original_price'] = product['price']
                             product['original_attributes'] = product['attributes'].copy()
+                    
                     project['pending_changes'] = {}
                     update_project_timestamp(project_id)
                     auto_save_project(project_id)
-                    st.success("Saved!")
+                    st.success("Saved! These changes will now be highlighted in the Excel download.")
                     time.sleep(1); st.rerun()
         with action_cols[1]:
             if st.button("❌ Reset All Changes", use_container_width=True):
                 with st.spinner("Reverting..."):
                     for product in project['products_data']:
-                        if product['original_index'] in project['pending_changes']:
+                        idx = product['original_index']
+                        changes = project['pending_changes'].get(idx) or project['pending_changes'].get(str(idx))
+                        
+                        if changes:
                             product['description'] = product['original_description']
                             product['price'] = product['original_price']
                             product['attributes'] = product['original_attributes'].copy()
