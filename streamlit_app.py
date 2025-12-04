@@ -1053,7 +1053,7 @@ def show_grid_page():
         
     with st.sidebar:
         if is_admin:
-            st.header("🔗 Share Project")
+            st.header("🔗 Share Project - NOT READY FOR CLIENTS")
             with st.expander("Generate Client Link"):
                 base_url = "https://visualgridvg.streamlit.app/" 
                 client_link = f"{base_url}?project={project_id}&mode=client"
