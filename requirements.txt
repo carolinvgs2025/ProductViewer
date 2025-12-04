@@ -4,3 +4,4 @@ google-cloud-firestore
 google-cloud-storage
 openpyxl
 Pillow
+plotly
