@@ -966,7 +966,21 @@ def show_grid_page():
     if is_admin:
         with st.container(border=True):
             st.markdown('<p style="font-size: 1.1rem; font-weight: bold; margin-top: -5px; margin-bottom: 5px;">🖼️ Add / Replace Images</p>', unsafe_allow_html=True)
-            new_images = st.file_uploader("Upload new images.", type=['png', 'jpg', 'jpeg'], accept_multiple_files=True, key=f"add_images_{project_id}", label_visibility="collapsed")
+            
+            # --- 1. DYNAMIC KEY SETUP: Initialize a version counter ---
+            img_ver_key = f"img_ver_{project_id}"
+            if img_ver_key not in st.session_state:
+                st.session_state[img_ver_key] = 0
+
+            # --- 2. USE DYNAMIC KEY: Appending the version ensures a fresh widget on increment ---
+            new_images = st.file_uploader(
+                "Upload new images.", 
+                type=['png', 'jpg', 'jpeg'], 
+                accept_multiple_files=True, 
+                key=f"add_images_{project_id}_{st.session_state[img_ver_key]}", 
+                label_visibility="collapsed"
+            )
+            
             if new_images:
                 with st.spinner(f"Matching {len(new_images)} image(s)..."):
                     product_lookup = {p['product_id'].lower().strip(): p for p in project['products_data']}
@@ -986,11 +1000,8 @@ def show_grid_page():
                                     p_data['image_url'] = updated_mappings[p_id]["public_url"]
                             st.success(f"✅ Added {updated_count} image(s).")
                             
-                            # --- FIX: Clear the uploader so it doesn't trigger again on rerun ---
-                            if f"add_images_{project_id}" in st.session_state:
-                                del st.session_state[f"add_images_{project_id}"]
-                            # --------------------------------------------------------------------
-
+                            # --- 3. INCREMENT VERSION: This forces the uploader to reset ---
+                            st.session_state[img_ver_key] += 1
                             time.sleep(1); st.rerun(); return
                         else: st.error("Save failed.")
                     else: st.warning(f"⚠️ No matches.")
