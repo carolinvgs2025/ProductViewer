@@ -927,6 +927,12 @@ def show_grid_page():
             update_project_timestamp(project_id)
             auto_save_project(project_id)
             st.success(f"Project updated with '{new_excel.name}'. Reloading...")
+            
+            # --- FIX: Clear the uploader so it doesn't trigger again on rerun ---
+            if f"replace_{project_id}" in st.session_state:
+                del st.session_state[f"replace_{project_id}"]
+            # --------------------------------------------------------------------
+
             time.sleep(1); st.rerun()
             return
 
@@ -979,6 +985,12 @@ def show_grid_page():
                                 if p_id in updated_mappings and "public_url" in updated_mappings[p_id]:
                                     p_data['image_url'] = updated_mappings[p_id]["public_url"]
                             st.success(f"✅ Added {updated_count} image(s).")
+                            
+                            # --- FIX: Clear the uploader so it doesn't trigger again on rerun ---
+                            if f"add_images_{project_id}" in st.session_state:
+                                del st.session_state[f"add_images_{project_id}"]
+                            # --------------------------------------------------------------------
+
                             time.sleep(1); st.rerun(); return
                         else: st.error("Save failed.")
                     else: st.warning(f"⚠️ No matches.")
