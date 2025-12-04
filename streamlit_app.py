@@ -1018,8 +1018,17 @@ def show_grid_page():
 
         # Admin-only tools (Excel Replace) remain protected
         if is_admin:
+        with h_col2:
+            st.markdown("<div><br></div>", unsafe_allow_html=True)
+            # This button is now visible to everyone (Clients & Admins) - assuming you kept the previous change
+            if st.button("📈 Summary View", use_container_width=True):
+                st.session_state.page = 'summary'
+                st.rerun()
+
+            # --- DYNAMIC KEY: Ensures uploader clears after use ---
             excel_ver_key = f"excel_ver_{project_id}"
-            if excel_ver_key not in st.session_state: st.session_state[excel_ver_key] = 0
+            if excel_ver_key not in st.session_state: 
+                st.session_state[excel_ver_key] = 0
             
             new_excel = st.file_uploader(
                 "Replace Source Grid", 
@@ -1058,10 +1067,9 @@ def show_grid_page():
             auto_save_project(project_id)
             st.success(f"Project updated with '{new_excel.name}'. Reloading...")
             
-            # --- FIX: Clear the uploader so it doesn't trigger again on rerun ---
-            if f"replace_{project_id}" in st.session_state:
-                del st.session_state[f"replace_{project_id}"]
-            # --------------------------------------------------------------------
+            # --- FIX: Increment version to force a fresh uploader widget ---
+            st.session_state[excel_ver_key] += 1
+            # ---------------------------------------------------------------
 
             time.sleep(1); st.rerun()
             return
