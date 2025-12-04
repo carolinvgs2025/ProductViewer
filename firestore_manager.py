@@ -89,7 +89,7 @@ class ProjectFirestoreManager:
 
     # ---------- CRUD ----------
 
-    def save_project(self, project_id: str, project_data: Dict) -> bool | Dict:
+def save_project(self, project_id: str, project_data: Dict) -> bool | Dict:
         if self._saving_in_progress: return False
         self._saving_in_progress = True
 
@@ -103,63 +103,74 @@ class ProjectFirestoreManager:
                 "last_modified": datetime.now().isoformat(),
                 "attributes": project_data.get("attributes", []),
                 "distributions": project_data.get("distributions", []),
-                "filter_options": {}, # CLEARED
+                "filter_options": {}, 
                 "pending_changes": project_data.get("pending_changes", {}),
                 "excel_filename": project_data.get("excel_filename"),
             }
 
-            # 2. Process Images
-            image_mappings_raw = project_data.get("image_mappings", {})
-            image_mappings = {}
-            
-            for k, v in image_mappings_raw.items():
+            # 2. Get Old Mappings (To identify what needs deletion)
+            old_mappings_raw = project_data.get("image_mappings", {})
+            old_mappings = {}
+            for k, v in old_mappings_raw.items():
                 key = str(k).lower().strip()
-                if not key: continue
-                if isinstance(v, dict): image_mappings[key] = v
-                elif isinstance(v, str): image_mappings[key] = {"public_url": v}
+                if isinstance(v, dict): old_mappings[key] = v
+                elif isinstance(v, str): old_mappings[key] = {"public_url": v}
 
+            # 3. Process Current Products & Build New Mappings
+            new_mappings = {}
             products_for_storage = []
             
             for product in project_data.get("products_data", []):
                 pcopy = dict(product)
                 img_info = pcopy.pop("image_data", None)
+                pid_lower = str(pcopy.get("product_id", "")).lower().strip()
 
-                if img_info:
-                    if isinstance(img_info, tuple) and len(img_info) == 2:
-                        image_name, img_bytes = img_info
-                    elif isinstance(img_info, bytes):
-                        img_bytes = img_info
-                        image_name = f"{pcopy.get('product_id', 'unnamed')}.png"
-                    else:
-                        products_for_storage.append(pcopy); continue
-                    
-                    pid_lower = str(pcopy.get("product_id", "")).lower().strip()
-                    if not pid_lower: products_for_storage.append(pcopy); continue
-
-                    if pid_lower in image_mappings:
-                        old_path = image_mappings[pid_lower].get("blob_path")
-                        if old_path: 
-                            try: self._bucket().blob(old_path).delete()
-                            except: pass
+                # A. Handle New Uploads (Bytes)
+                if img_info and (isinstance(img_info, bytes) or isinstance(img_info, tuple)):
+                    if isinstance(img_info, tuple): image_name, img_bytes = img_info
+                    else: img_bytes = img_info; image_name = f"{pcopy.get('product_id', 'unnamed')}.png"
                     
                     blob_path = self._image_blob_path(project_id, image_name)
                     content_type = "image/png" if image_name.lower().endswith(".png") else "image/jpeg"
-                    
-                    # Upload (Assumes Public Bucket)
                     base_url = self._upload_bytes(blob_path, img_bytes, content_type)
                     
                     pcopy["image_url"] = f"{base_url}?t={int(time.time())}"
-                    image_mappings[pid_lower] = {"blob_path": blob_path, "public_url": pcopy["image_url"]}
+                    new_mappings[pid_lower] = {"blob_path": blob_path, "public_url": pcopy["image_url"]}
+
+                # B. Handle Existing URLs (Preserve mapping)
+                elif pid_lower in old_mappings:
+                    # If the product still exists and has no new upload, keep the old mapping
+                    new_mappings[pid_lower] = old_mappings[pid_lower]
+                    # Ensure the product URL matches the mapping
+                    if "public_url" in new_mappings[pid_lower]:
+                        pcopy["image_url"] = new_mappings[pid_lower]["public_url"]
 
                 products_for_storage.append(pcopy)
 
-            # 3. Offload Large Data
+            # 4. Garbage Collection (Delete Orphaned Images)
+            # Compare Old vs New. If it was in Old but NOT in New, delete it.
+            for pid, old_meta in old_mappings.items():
+                # Case 1: Product completely deleted
+                if pid not in new_mappings:
+                    path = old_meta.get("blob_path")
+                    if path:
+                        try: self._bucket().blob(path).delete()
+                        except: pass
+                
+                # Case 2: Product exists, but image was replaced (Blob path changed)
+                elif pid in new_mappings:
+                    old_path = old_meta.get("blob_path")
+                    new_path = new_mappings[pid].get("blob_path")
+                    if old_path and new_path and old_path != new_path:
+                        try: self._bucket().blob(old_path).delete()
+                        except: pass
+
+            # 5. Offload Large Data
             try:
                 large_data_payload = {
                     "products": products_for_storage,
                     "filter_options": project_data.get("filter_options", {})
                 }
-                
                 products_json = json.dumps(large_data_payload)
                 json_path = f"projects/{project_id}/products_data.json"
                 self._upload_bytes(json_path, products_json.encode('utf-8'), "application/json")
@@ -167,14 +178,13 @@ class ProjectFirestoreManager:
                 firestore_data["products_blob_path"] = json_path
                 firestore_data["products_data"] = [] 
                 firestore_data["product_count"] = len(products_for_storage) 
-                
             except Exception as e:
                 st.error(f"Failed to upload data file: {e}")
                 return False
 
-            firestore_data["image_mappings"] = image_mappings
+            firestore_data["image_mappings"] = new_mappings
 
-            # 4. Excel
+            # 6. Excel
             excel_bytes = project_data.get("excel_file_data")
             if excel_bytes:
                 name = project_data.get("excel_filename") or "grid.xlsx"
@@ -184,7 +194,7 @@ class ProjectFirestoreManager:
                 firestore_data["excel_url"] = url
 
             self.db.collection(self.collection_name).document(project_id).set(firestore_data)
-            return image_mappings
+            return new_mappings
 
         except Exception as e:
             st.error(f"Error saving: {e}")
