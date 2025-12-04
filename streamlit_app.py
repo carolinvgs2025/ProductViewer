@@ -723,7 +723,7 @@ def show_create_project_page():
                     st.rerun()
 
 def show_summary_page():
-    """Shows a summary dashboard with pie charts and bulk editing."""
+    """Shows a summary dashboard with pie charts, price distribution, and bulk editing."""
     if not st.session_state.current_project or st.session_state.current_project not in st.session_state.projects:
         st.error("No project loaded.")
         st.session_state.page = 'projects'; st.rerun()
@@ -742,14 +742,14 @@ def show_summary_page():
             st.session_state.page = 'grid'
             st.rerun()
             
-    # --- Sidebar: Selection & Save ---
+    # --- Sidebar: Options & Filters ---
     all_attrs = project.get('attributes', [])
     clean_attrs = [a.replace('ATT ', '') for a in all_attrs]
     
     with st.sidebar:
         st.header("View Options")
         selected_indices = st.multiselect(
-            "Select Attributes:", 
+            "Select Attributes to Chart:", 
             range(len(all_attrs)), 
             format_func=lambda i: clean_attrs[i],
             default=range(len(all_attrs))
@@ -757,22 +757,82 @@ def show_summary_page():
         selected_attrs = [all_attrs[i] for i in selected_indices]
         
         st.divider()
-        # PLACEHOLDER for pending renames count, populated below
+        
+        # --- NEW: Filters in Summary View ---
+        st.header("🔍 Filters")
+        attribute_filters = {
+            attr: st.multiselect(
+                attr.replace('ATT ', ''), 
+                ['All'] + project['filter_options'].get(attr, []), 
+                default=['All'], 
+                key=f"sum_filt_{attr}"
+            ) 
+            for attr in project['attributes']
+        }
+        
+        dist_filters = []
+        if project['distributions']:
+            dist_filters = st.multiselect(
+                "Distribution", 
+                ['All'] + [d.replace('DIST ', '') for d in project['distributions']], 
+                default=['All'], 
+                key="sum_filt_dist"
+            )
+        # ------------------------------------
+
+        st.divider()
+        # Container for "Save Changes" button (populated later)
         status_container = st.container()
 
-    # --- Data Processing ---
-    df = pd.DataFrame(project['products_data'])
-    if not df.empty:
+    # --- Data Processing (With Filters) ---
+    # Apply the filters to get the subset of data
+    filtered_products = apply_filters(
+        project['products_data'], 
+        attribute_filters, 
+        dist_filters,
+        project.get('pending_changes', {}),
+        False # show_pending_only (default to False for summary view)
+    )
+
+    df = pd.DataFrame(filtered_products)
+    
+    if df.empty:
+        st.warning("No product data matches the current filters.")
+        return
+
+    # Flatten attributes for easy charting
+    if 'attributes' in df.columns:
         attr_df = pd.DataFrame(list(df['attributes']))
         df = pd.concat([df.drop('attributes', axis=1), attr_df], axis=1)
 
     pending_renames = [] 
     
-    if df.empty:
-        st.warning("No product data to summarize.")
-        return
+    st.markdown(f"### Showing {len(df)} Products")
 
-    # --- Render Charts & Inputs ---
+    # --- NEW: Price Distribution Visualization ---
+    if 'price' in df.columns:
+        # Create a numeric copy for plotting (coerce errors to NaN)
+        df['price_num'] = pd.to_numeric(df['price'], errors='coerce')
+        valid_prices = df.dropna(subset=['price_num'])
+        
+        if not valid_prices.empty:
+            with st.container(border=True):
+                st.subheader("Price Distribution")
+                
+                # Use a specific, uneditable key for the graph
+                fig = px.histogram(
+                    valid_prices, 
+                    x="price_num", 
+                    nbins=20, 
+                    labels={'price_num': 'Price ($)'},
+                    template="plotly_white",
+                    color_discrete_sequence=['#636EFA']
+                )
+                fig.update_layout(bargap=0.1, margin=dict(t=10, b=10))
+                st.plotly_chart(fig, use_container_width=True)
+    # ---------------------------------------------
+
+    # --- Render Attribute Charts & Inputs ---
     for attr in selected_attrs:
         with st.container(border=True):
             col_header, _ = st.columns([3, 1])
@@ -799,15 +859,20 @@ def show_summary_page():
                 if attr in df.columns:
                     counts = df[attr].value_counts().reset_index()
                     counts.columns = ['Option', 'Count']
-                    fig = px.pie(counts, values='Count', names='Option', hole=0.4)
-                    fig.update_layout(margin=dict(t=0, b=0, l=0, r=0), height=300)
-                    st.plotly_chart(fig, use_container_width=True)
+                    if not counts.empty:
+                        fig = px.pie(counts, values='Count', names='Option', hole=0.4)
+                        fig.update_layout(margin=dict(t=0, b=0, l=0, r=0), height=300)
+                        st.plotly_chart(fig, use_container_width=True)
+                    else:
+                        st.info("No data.")
                 else:
                     st.write("No data found.")
 
             with c_data:
                 st.write("**Edit Option Names**" if is_admin else "**Options Legend**")
+                # Get unique options from the FILTERED dataframe for display
                 options = sorted(list(df[attr].dropna().unique())) if attr in df.columns else []
+                
                 container = st.container()
                 if len(options) > 10:
                     container = st.expander(f"Show all {len(options)} options")
@@ -816,14 +881,18 @@ def show_summary_page():
                     for val in options:
                         if is_admin:
                             c_opt_1, c_opt_2 = st.columns([3, 7])
-                            c_opt_1.write(f"{val} ({len(df[df[attr]==val])})")
+                            # Count calculation based on filtered DF
+                            count = len(df[df[attr]==val])
+                            c_opt_1.write(f"{val} ({count})")
+                            
                             new_val = c_opt_2.text_input(
                                 "Rename", value=val, key=f"rename_val_{attr}_{val}", label_visibility="collapsed"
                             )
                             if new_val != val:
                                 pending_renames.append(("OPTION", val, new_val, attr))
                         else:
-                            st.write(f"- {val} ({len(df[df[attr]==val])})")
+                            count = len(df[df[attr]==val])
+                            st.write(f"- {val} ({count})")
 
     # --- SAVE LOGIC (IN SIDEBAR) ---
     if is_admin and pending_renames:
