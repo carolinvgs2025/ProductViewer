@@ -354,13 +354,14 @@ def load_and_parse_excel(uploaded_file, image_url_mappings):
         return [], [], [], {}
         
         
-def apply_filters(products, attribute_filters, distribution_filters):
+def apply_filters(products, attribute_filters, distribution_filters, pending_changes=None, show_pending_only=False):
     """Apply filters to products and return filtered list."""
     if not products:
         return []
 
     filtered_products = products
 
+    # --- NEW: Filter by Pending Changes ---
     if show_pending_only and pending_changes:
         # Normalize keys to strings to ensure we catch both int/str formats
         pending_keys = set(str(k) for k in pending_changes.keys())
@@ -368,6 +369,7 @@ def apply_filters(products, attribute_filters, distribution_filters):
             p for p in filtered_products 
             if str(p["original_index"]) in pending_keys
         ]
+    # --------------------------------------
     
     for attr, selected_values in attribute_filters.items():
         if selected_values and 'All' not in selected_values:
@@ -386,6 +388,7 @@ def apply_filters(products, attribute_filters, distribution_filters):
         
     return filtered_products
 
+    
 def create_download_excel(project):
     """Create Excel file, highlighting ONLY the most recently applied changes."""
     if not project['products_data']:
