@@ -787,7 +787,10 @@ def apply_bulk_renames(project, renames):
             # Update Current Value
             if p['attributes'].get(parent_attr) == old_val:
                 p['attributes'][parent_attr] = new_val
-            # Update Original/Baseline Value (Fixes Red Text issue)
+            
+            # Update Original/Baseline Value
+            # This ensures that if the value was Black (Current == Original),
+            # it stays Black (NewCurrent == NewOriginal).
             if p['original_attributes'].get(parent_attr) == old_val:
                 p['original_attributes'][parent_attr] = new_val
         
