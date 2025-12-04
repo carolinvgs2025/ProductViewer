@@ -838,12 +838,13 @@ def show_summary_page():
                     counts.columns = ['Option', 'Count']
                     if not counts.empty:
                         fig = px.pie(counts, values='Count', names='Option', hole=0.4)
+                        
+                        fig.update_traces(textinfo='none') 
+                        
                         fig.update_layout(margin=dict(t=0, b=0, l=0, r=0), height=300)
                         st.plotly_chart(fig, use_container_width=True)
                     else:
                         st.info("No data.")
-                else:
-                    st.write("No data found.")
 
             with c_data:
                 st.write("**Edit Option Names**" if is_admin else "**Options Legend**")
