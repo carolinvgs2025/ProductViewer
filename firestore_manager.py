@@ -89,7 +89,7 @@ class ProjectFirestoreManager:
 
     # ---------- CRUD ----------
 
-def save_project(self, project_id: str, project_data: Dict) -> bool | Dict:
+    def save_project(self, project_id: str, project_data: Dict) -> bool | Dict:
         if self._saving_in_progress: return False
         self._saving_in_progress = True
 
