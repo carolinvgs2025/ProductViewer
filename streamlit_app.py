@@ -360,6 +360,14 @@ def apply_filters(products, attribute_filters, distribution_filters):
         return []
 
     filtered_products = products
+
+    if show_pending_only and pending_changes:
+        # Normalize keys to strings to ensure we catch both int/str formats
+        pending_keys = set(str(k) for k in pending_changes.keys())
+        filtered_products = [
+            p for p in filtered_products 
+            if str(p["original_index"]) in pending_keys
+        ]
     
     for attr, selected_values in attribute_filters.items():
         if selected_values and 'All' not in selected_values:
@@ -1115,10 +1123,21 @@ def show_grid_page():
             st.divider()
 
         st.header("🔍 Filters")
+
+        show_pending_only = st.checkbox("Show Pending Changes Only", value=False)
+        st.divider()
+        
         attribute_filters = {attr: st.multiselect(attr.replace('ATT ', ''), ['All'] + project['filter_options'].get(attr, []), default=['All']) for attr in project['attributes']}
         dist_filters = st.multiselect("Distribution", ['All'] + [d.replace('DIST ', '') for d in project['distributions']], default=['All']) if project['distributions'] else []
 
-    filtered_products = apply_filters(project['products_data'], attribute_filters, dist_filters)
+    filtered_products = apply_filters(
+        project['products_data'], 
+        attribute_filters, 
+        dist_filters,
+        project.get('pending_changes', {}),
+        show_pending_only
+    )
+    
     sort_by, is_ascending = view_options['sort_by'], view_options['sort_ascending']
     def get_sort_key(p):
         if sort_by == 'product_id': return int(p['product_id']) if p['product_id'].isdigit() else p['product_id']
