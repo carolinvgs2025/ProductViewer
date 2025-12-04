@@ -469,24 +469,24 @@ def display_product_card(product, project, visible_attributes):
         )
         st.markdown(image_html, unsafe_allow_html=True)
         
-        # --- LOGIC UPDATE: Check Pending Changes for Red Highlighting ---
-        # Instead of comparing current vs original, we check if the field 
-        # is explicitly listed in the pending_changes dictionary.
+        # --- Check Pending Changes for Red Highlighting ---
         idx = product["original_index"]
         pending = project.get('pending_changes', {})
-        
-        # Handle both integer (runtime) and string (JSON/Firestore) keys
         product_changes = pending.get(idx) or pending.get(str(idx)) or {}
-        # ----------------------------------------------------------------
+        # --------------------------------------------------
 
         card_content = ""
+        
+        # --- NEW: Always Show Product ID ---
+        # This sits above the description in gray text
+        card_content += f'<div style="font-size: 11px; color: #888; margin-bottom: 2px;">ID: {product["product_id"]}</div>'
+        # -----------------------------------
+
         if "Description" in visible_attributes:
-            # Only red if "description" is in the pending changes for this product
             desc_class = "changed-attribute" if "description" in product_changes else ""
             card_content += f'<p class="{desc_class}" style="margin-bottom: 4px;"><strong>{product["description"]}</strong></p>'
         
         if "Price" in visible_attributes and product.get("price"):
-            # Only red if "price" is in the pending changes
             price_class = "changed-attribute" if "price" in product_changes else ""
             card_content += f'<p class="{price_class}" style="margin-bottom: 8px;">Price: ${product["price"]}</p>'
         
@@ -494,8 +494,6 @@ def display_product_card(product, project, visible_attributes):
         for attr in project.get('attributes', []):
             if attr in visible_attributes:
                 current_val = product["attributes"].get(attr, "N/A")
-                
-                # Only red if this specific attribute key is in pending changes
                 is_changed = attr in product_changes
                 
                 style = 'color: #B22222; font-weight: bold;' if is_changed else ''
