@@ -580,7 +580,7 @@ def show_edit_modal(product, project):
 # --- PAGE VIEW FUNCTIONS ---
 def show_projects_page():
     """Display the main projects page."""
-    st.title("📁 Product Grid Projects")
+    st.title("📁 Interactive Product Grid")
 
     with st.container():
         st.markdown('<div class="new-project-section"><h2>🚀 Start a New Project</h2><p>Create a new product grid project with your Excel data and images</p></div>', unsafe_allow_html=True)
