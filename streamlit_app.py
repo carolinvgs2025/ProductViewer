@@ -161,16 +161,20 @@ st.markdown("""
 
 # --- IMAGE PROCESSING HELPERS ---
 CARD_IMG_CSS_WIDTH = 200
+CARD_IMG_CSS_HEIGHT = 220  # NEW: Fixed height for grid images
 MODAL_IMG_CSS_WIDTH = 300
 RETINA_FACTOR = 2
+
 
 @st.cache_data(show_spinner=False)
 def get_image_html_from_url(product_id: str, image_url: str, css_width: int):
     """Creates a simple <img> tag from a URL. Caches against the product_id."""
     if not image_url:
-        return f'<div style="height: {css_width}px; display: flex; align-items: center; justify-content: center; background-color: #f0f2f6; border-radius: 8px;">📷 No image</div>'
+        # UPDATED: Use fixed height for placeholder
+        return f'<div style="width: {css_width}px; height: {CARD_IMG_CSS_HEIGHT}px; display: flex; align-items: center; justify-content: center; background-color: #f0f2f6; border-radius: 8px;">📷 No image</div>'
     
-    return f'<img src="{image_url}" style="width:{css_width}px;height:auto;display:block;margin-left:auto;margin-right:auto;image-rendering:auto;" alt="Product Image">'
+    # UPDATED: Fixed height with object-fit: contain
+    return f'<img src="{image_url}" style="width: auto; max-width: {css_width}px; height: {CARD_IMG_CSS_HEIGHT}px; object-fit: contain; display: block; margin-left: auto; margin-right: auto;" alt="Product Image">'
 
 @st.cache_data(show_spinner=False)
 def _encode_png_uri(im: Image.Image) -> str:
@@ -197,23 +201,23 @@ def build_img_srcset(image_bytes: bytes, css_width: int) -> str:
     two_x = _resize_lanczos(img, css_width * RETINA_FACTOR)
     uri_1x = _encode_png_uri(one_x)
     uri_2x = _encode_png_uri(two_x)
+    
+    # UPDATED: Fixed height with object-fit: contain
     return f"""
     <img
       src="{uri_1x}"
       srcset="{uri_1x} 1x, {uri_2x} {RETINA_FACTOR}x"
-      style="width:{css_width}px;height:auto;display:block;margin-left:auto;margin-right:auto;image-rendering:auto;"
+      style="width: auto; max-width: {css_width}px; height: {CARD_IMG_CSS_HEIGHT}px; object-fit: contain; display: block; margin-left: auto; margin-right: auto;"
       alt="Product Image"
     />
     """
 
 @st.cache_data(show_spinner=False)
 def get_cached_product_image_html(product_id: str, image_bytes: bytes, css_width: int):
-    """
-    Processes and caches the image HTML against the product_id.
-    This prevents re-processing the same image on every rerun, boosting performance.
-    """
+    """Processes and caches the image HTML against the product_id."""
     if not image_bytes:
-        return f'<div style="height: {css_width}px; display: flex; align-items: center; justify-content: center; background-color: #f0f2f6; border-radius: 8px;">📷 No image</div>'
+        # UPDATED: Use fixed height for placeholder
+        return f'<div style="width: {css_width}px; height: {CARD_IMG_CSS_HEIGHT}px; display: flex; align-items: center; justify-content: center; background-color: #f0f2f6; border-radius: 8px;">📷 No image</div>'
     return build_img_srcset(image_bytes, css_width)
 
 
