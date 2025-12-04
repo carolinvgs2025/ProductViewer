@@ -787,11 +787,11 @@ def apply_bulk_renames(project, renames):
             # Update Current Value
             if p['attributes'].get(parent_attr) == old_val:
                 p['attributes'][parent_attr] = new_val
+                # FIX: Sync Original to Current so it turns Green (accepted as new baseline)
+                p['original_attributes'][parent_attr] = new_val
             
-            # Update Original/Baseline Value
-            # This ensures that if the value was Black (Current == Original),
-            # it stays Black (NewCurrent == NewOriginal).
-            if p['original_attributes'].get(parent_attr) == old_val:
+            # Update Original/Baseline Value (fallback if Current didn't match but Original did)
+            elif p['original_attributes'].get(parent_attr) == old_val:
                 p['original_attributes'][parent_attr] = new_val
         
         # Update Filter List
@@ -814,18 +814,22 @@ def apply_bulk_renames(project, renames):
             
         # Update Product Keys (Current & Original)
         for p in products:
+            val = None
             if old_attr in p['attributes']:
-                p['attributes'][new_attr] = p['attributes'].pop(old_attr)
+                val = p['attributes'].pop(old_attr)
+                p['attributes'][new_attr] = val
+            
             if old_attr in p['original_attributes']:
                 p['original_attributes'][new_attr] = p['original_attributes'].pop(old_attr)
+            elif val is not None:
+                # FIX: Self-healing - if key was missing in original, create it to prevent Red "N/A"
+                p['original_attributes'][new_attr] = val
         
         # Update Filter Keys
         if old_attr in project['filter_options']:
             project['filter_options'][new_attr] = project['filter_options'].pop(old_attr)
 
-        # --- FIX: Update Session State View Options ---
-        # This prevents the "StreamlitAPIException" when the default value
-        # in the multiselect no longer exists in the options list.
+        # --- Update Session State View Options ---
         view_key = f"view_options_{project['id']}"
         if view_key in st.session_state:
             view_opts = st.session_state[view_key]
@@ -833,7 +837,6 @@ def apply_bulk_renames(project, renames):
             # Update 'visible_attributes' list
             if 'visible_attributes' in view_opts:
                 if old_attr in view_opts['visible_attributes']:
-                    # Find index and replace
                     idx = view_opts['visible_attributes'].index(old_attr)
                     view_opts['visible_attributes'][idx] = new_attr
             
