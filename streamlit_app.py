@@ -1192,9 +1192,11 @@ def auto_save_project(project_id):
 
 def main():
     """Main application router."""
+    # 1. Determine Mode
     if st.query_params.get("mode") == "client": st.session_state.client_mode = True
     else: st.session_state.client_mode = False
 
+    # 2. Load Project from URL if present
     if "project" in st.query_params and not st.session_state.current_project:
         target_project_id = st.query_params["project"]
         if ensure_project_loaded(target_project_id):
@@ -1204,12 +1206,18 @@ def main():
             st.query_params.clear()
             st.error(f"Project {target_project_id} not found.")
 
+    # 3. Client Mode Security & Routing
     if st.session_state.get("client_mode"):
         if not st.session_state.current_project:
             st.error("No project specified for client view.")
             return
-        st.session_state.page = 'grid'
+        
+        # FIX: Only force 'grid' if the user tries to access a restricted page.
+        # This allows them to stay on 'summary' if they navigated there.
+        if st.session_state.page not in ['grid', 'summary']:
+            st.session_state.page = 'grid'
 
+    # 4. Render Page
     if st.session_state.page == 'projects': show_projects_page()
     elif st.session_state.page == 'create_project': show_create_project_page()
     elif st.session_state.page == 'grid': show_grid_page()
