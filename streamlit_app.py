@@ -8,7 +8,7 @@ from io import BytesIO
 from datetime import datetime
 import uuid
 from PIL import Image, ImageOps
-import plotly.express as px # Added for Summary Page
+import plotly.express as px
 
 # This assumes your firestore_manager.py file is present and correct
 from firestore_manager import (
@@ -403,14 +403,9 @@ def create_download_excel(project):
 
 # --- UI DISPLAY FUNCTIONS ---
 def display_product_card(product, project, visible_attributes):
-    """
-    Display a single product card using a native Streamlit container.
-    This fixes the 'border not going around' issue.
-    """
-    # USE NATIVE CONTAINER: This ensures the border wraps the image, text, AND button.
+    """Display a single product card."""
     with st.container(border=True):
         
-        # 1. Product Image
         image_html = get_image_html_from_url(
             product_id=product["product_id"], 
             image_url=product.get("image_url"), 
@@ -418,12 +413,9 @@ def display_product_card(product, project, visible_attributes):
         )
         st.markdown(image_html, unsafe_allow_html=True)
         
-        # 2. Product Text Content
         card_content = ""
         if "Description" in visible_attributes:
-            # Check for changes to highlight in red
             desc_class = "changed-attribute" if product["description"] != product["original_description"] else ""
-            # Using standard paragraph with a bit of bottom margin
             card_content += f'<p class="{desc_class}" style="margin-bottom: 4px;"><strong>{product["description"]}</strong></p>'
         
         if "Price" in visible_attributes and product.get("price"):
@@ -440,13 +432,10 @@ def display_product_card(product, project, visible_attributes):
                 style = 'color: #B22222; font-weight: bold;' if current_val != original_val else ''
                 clean_attr = attr.replace('ATT ', '')
                 
-                # Render attribute with smaller font (12px)
                 card_content += f'<div style="font-size: 12px; line-height: 1.4; {style}"><strong>{clean_attr}:</strong> {current_val}</div>'
         
-        # Render all text at once
         st.markdown(card_content, unsafe_allow_html=True)
 
-        # 3. Edit Button (Now safely inside the border)
         if not st.session_state.get("client_mode", False):
             if st.button(f"Edit", key=f"edit_{product['original_index']}_{project['id']}", use_container_width=True):
                 st.session_state.editing_product = product
@@ -455,9 +444,7 @@ def display_product_card(product, project, visible_attributes):
 def show_edit_modal(product, project):
     @st.dialog(f"Edit Product: {product['product_id']}")
     def edit_product_dialog():
-        # --- MODIFIED BLOCK ---
         if product.get("image_url"):
-            # Use the URL directly in a simple img tag
             st.markdown(f'<div style="text-align: center; margin-bottom: 20px;"><img src="{product["image_url"]}" style="width:{MODAL_IMG_CSS_WIDTH}px; height:auto;"></div>', unsafe_allow_html=True)
         
         col1, col2 = st.columns(2)
@@ -559,9 +546,7 @@ def show_projects_page():
                 
                 if col2.button("Open", key=f"open_{s['id']}", type="primary", use_container_width=True):
                     if ensure_project_loaded(s['id']):
-                        # --- THIS IS THE CHANGE ---
-                        st.query_params["project"] = s['id']  # Update URL to /?project=ID
-                        
+                        st.query_params["project"] = s['id']
                         st.session_state.current_project = s['id']
                         st.session_state.page = 'grid'
                         st.rerun()
@@ -593,15 +578,12 @@ def show_create_project_page():
         
         # --- NEW: Match Preview ---
         if uploaded_excel and uploaded_images:
-            # 1. Quick Parse just for counting
             try:
                 df_preview = pd.read_excel(uploaded_excel)
-                # Find ID col
                 df_preview.columns = [str(c).strip() for c in df_preview.columns]
                 id_col = next((c for c in df_preview.columns if 'product id' in c.lower()), None)
                 
                 if id_col:
-                    # FIX: Apply same robust logic to preview
                     excel_ids = set()
                     for x in df_preview[id_col].dropna():
                         if isinstance(x, float) and x.is_integer():
@@ -623,7 +605,7 @@ def show_create_project_page():
                     else:
                         st.success(f"✅ **{match_count}** images matched out of {len(uploaded_images)} uploaded.")
             except Exception:
-                pass # Ignore errors during preview
+                pass 
         
         submitted = st.form_submit_button("🚀 Create Project", type="primary", use_container_width=True)
         
@@ -676,10 +658,7 @@ def show_create_project_page():
                     st.rerun()
 
 def show_summary_page():
-    """
-    Shows a summary dashboard with pie charts for attributes.
-    Allows editing attribute names and option values globally.
-    """
+    """Shows a summary dashboard with pie charts and bulk editing."""
     if not st.session_state.current_project or st.session_state.current_project not in st.session_state.projects:
         st.error("No project loaded.")
         st.session_state.page = 'projects'; st.rerun()
@@ -698,47 +677,43 @@ def show_summary_page():
             st.session_state.page = 'grid'
             st.rerun()
             
-    # --- Sidebar: Attribute Selection ---
+    # --- Sidebar: Selection & Save ---
     all_attrs = project.get('attributes', [])
     clean_attrs = [a.replace('ATT ', '') for a in all_attrs]
     
     with st.sidebar:
         st.header("View Options")
         selected_indices = st.multiselect(
-            "Select Attributes to Summarize:", 
+            "Select Attributes:", 
             range(len(all_attrs)), 
             format_func=lambda i: clean_attrs[i],
             default=range(len(all_attrs))
         )
-    
-    selected_attrs = [all_attrs[i] for i in selected_indices]
-    
-    # --- Data Processing for Charts ---
-    # Create a DataFrame for easy plotting
+        selected_attrs = [all_attrs[i] for i in selected_indices]
+        
+        st.divider()
+        # PLACEHOLDER for pending renames count, populated below
+        status_container = st.container()
+
+    # --- Data Processing ---
     df = pd.DataFrame(project['products_data'])
-    # Expand attributes dict into columns
     if not df.empty:
         attr_df = pd.DataFrame(list(df['attributes']))
         df = pd.concat([df.drop('attributes', axis=1), attr_df], axis=1)
 
-    # --- Change Tracking for Renames ---
-    # We collect all changes in session_state variables and apply them on button click
-    # Changes are tracked by looking at the input widgets values vs original values
-    
-    pending_renames = [] # List of tuples: (type, old_name, new_name, parent_attr)
+    pending_renames = [] 
     
     if df.empty:
         st.warning("No product data to summarize.")
         return
 
-    # --- Render Charts & Edit Inputs ---
+    # --- Render Charts & Inputs ---
     for attr in selected_attrs:
         with st.container(border=True):
-            # 1. Attribute Header (Editable)
             col_header, _ = st.columns([3, 1])
             original_attr_name = attr.replace('ATT ', '')
             
-            # Input for Attribute Name
+            # Attribute Rename Input
             if is_admin:
                 new_attr_name_input = st.text_input(
                     f"Attribute Name ({attr})", 
@@ -746,25 +721,16 @@ def show_summary_page():
                     key=f"rename_attr_{attr}",
                     label_visibility="collapsed"
                 )
-                
-                # Check for Rename
                 if new_attr_name_input != original_attr_name:
-                    # Reconstruct full ATT key if needed, or just use raw if logic changed
-                    # Assuming we keep 'ATT ' prefix in backend? 
-                    # Prompt says "change attribute name". Let's assume user just types "Brand".
-                    # We might need to keep "ATT " prefix if other logic depends on it.
-                    # For now, let's assume we map "ATT Old" -> "ATT New"
                     full_new_name = f"ATT {new_attr_name_input}"
                     pending_renames.append(("ATTR", attr, full_new_name, None))
-                    st.caption(f"✏️ *Will rename to: {full_new_name}*")
+                    st.caption(f"✏️ *Renaming to: {full_new_name}*")
             else:
                 st.subheader(original_attr_name)
 
-            # 2. Charts & Option Edits
             c_chart, c_data = st.columns([1, 1])
             
             with c_chart:
-                # Count values
                 if attr in df.columns:
                     counts = df[attr].value_counts().reset_index()
                     counts.columns = ['Option', 'Count']
@@ -772,14 +738,11 @@ def show_summary_page():
                     fig.update_layout(margin=dict(t=0, b=0, l=0, r=0), height=300)
                     st.plotly_chart(fig, use_container_width=True)
                 else:
-                    st.write("No data found for this attribute.")
+                    st.write("No data found.")
 
             with c_data:
                 st.write("**Edit Option Names**" if is_admin else "**Options Legend**")
-                # Get unique values for this attribute
                 options = sorted(list(df[attr].dropna().unique())) if attr in df.columns else []
-                
-                # Use an expander if too many options
                 container = st.container()
                 if len(options) > 10:
                     container = st.expander(f"Show all {len(options)} options")
@@ -790,76 +753,90 @@ def show_summary_page():
                             c_opt_1, c_opt_2 = st.columns([3, 7])
                             c_opt_1.write(f"{val} ({len(df[df[attr]==val])})")
                             new_val = c_opt_2.text_input(
-                                "Rename", 
-                                value=val, 
-                                key=f"rename_val_{attr}_{val}", 
-                                label_visibility="collapsed"
+                                "Rename", value=val, key=f"rename_val_{attr}_{val}", label_visibility="collapsed"
                             )
                             if new_val != val:
                                 pending_renames.append(("OPTION", val, new_val, attr))
                         else:
                             st.write(f"- {val} ({len(df[df[attr]==val])})")
 
-    # --- Apply Changes Section ---
+    # --- SAVE LOGIC (IN SIDEBAR) ---
     if is_admin and pending_renames:
-        st.divider()
-        st.warning(f"You have {len(pending_renames)} pending name changes.")
-        
-        if st.button("💾 Confirm & Save All Name Changes", type="primary"):
-            with st.spinner("Applying global renames..."):
-                apply_bulk_renames(project, pending_renames)
-                
-                # Save to cloud
-                auto_save_project(project_id)
-                update_project_timestamp(project_id)
-                
-                st.success("Changes applied successfully!")
-                time.sleep(1)
-                st.rerun()
+        with status_container:
+            st.warning(f"⚠️ {len(pending_renames)} Pending Changes")
+            if st.button("💾 SAVE ALL CHANGES", type="primary", use_container_width=True):
+                with st.spinner("Saving changes..."):
+                    apply_bulk_renames(project, pending_renames)
+                    auto_save_project(project_id)
+                    update_project_timestamp(project_id)
+                    st.success("Saved!")
+                    time.sleep(1)
+                    st.rerun()
 
 def apply_bulk_renames(project, renames):
     """
-    Applies a list of renames to the project structure in-place.
-    renames: list of (type, old, new, parent_attr)
+    Applies renames to project data AND updates original_attributes 
+    so the changes are accepted as the new baseline (no red text).
     """
     products = project['products_data']
     
-    # 1. Process Option Renames first (values inside attributes)
+    # 1. Option Renames
     option_renames = [r for r in renames if r[0] == "OPTION"]
     for _, old_val, new_val, parent_attr in option_renames:
-        # Update every product
         for p in products:
+            # Update Current Value
             if p['attributes'].get(parent_attr) == old_val:
                 p['attributes'][parent_attr] = new_val
+            # Update Original/Baseline Value (Fixes Red Text issue)
+            if p['original_attributes'].get(parent_attr) == old_val:
+                p['original_attributes'][parent_attr] = new_val
         
-        # Update filter_options list
+        # Update Filter List
         if parent_attr in project['filter_options']:
             opts = project['filter_options'][parent_attr]
             if old_val in opts:
                 opts.remove(old_val)
-                if new_val not in opts:
-                    opts.append(new_val)
+                if new_val not in opts: opts.append(new_val)
                 opts.sort()
 
-    # 2. Process Attribute Key Renames
+    # 2. Attribute Renames
     attr_renames = [r for r in renames if r[0] == "ATTR"]
     for _, old_attr, new_attr, _ in attr_renames:
-        # Skip if no change (sanity check)
         if old_attr == new_attr: continue
         
-        # Update Attribute List
+        # Update List
         if old_attr in project['attributes']:
             idx = project['attributes'].index(old_attr)
             project['attributes'][idx] = new_attr
             
-        # Update Products Keys
+        # Update Product Keys (Current & Original)
         for p in products:
             if old_attr in p['attributes']:
                 p['attributes'][new_attr] = p['attributes'].pop(old_attr)
+            if old_attr in p['original_attributes']:
+                p['original_attributes'][new_attr] = p['original_attributes'].pop(old_attr)
         
-        # Update Filter Options Key
+        # Update Filter Keys
         if old_attr in project['filter_options']:
             project['filter_options'][new_attr] = project['filter_options'].pop(old_attr)
+
+        # --- FIX: Update Session State View Options ---
+        # This prevents the "StreamlitAPIException" when the default value
+        # in the multiselect no longer exists in the options list.
+        view_key = f"view_options_{project['id']}"
+        if view_key in st.session_state:
+            view_opts = st.session_state[view_key]
+            
+            # Update 'visible_attributes' list
+            if 'visible_attributes' in view_opts:
+                if old_attr in view_opts['visible_attributes']:
+                    # Find index and replace
+                    idx = view_opts['visible_attributes'].index(old_attr)
+                    view_opts['visible_attributes'][idx] = new_attr
+            
+            # Update 'sort_by' if currently sorted by the renamed attribute
+            if view_opts.get('sort_by') == old_attr:
+                view_opts['sort_by'] = new_attr
 
 
 def show_grid_page():
@@ -871,8 +848,6 @@ def show_grid_page():
     
     project = st.session_state.projects[st.session_state.current_project]
     project_id = project['id']
-    
-    # --- CLIENT MODE CHECK ---
     is_admin = not st.session_state.get("client_mode", False)
 
     PRODUCTS_PER_PAGE = 50
@@ -880,7 +855,6 @@ def show_grid_page():
     if page_state_key not in st.session_state:
         st.session_state[page_state_key] = 1
 
-    # --- HELPER FUNCTIONS ---
     def increment_page(): st.session_state[page_state_key] += 1
     def decrement_page(): st.session_state[page_state_key] -= 1
 
@@ -893,30 +867,24 @@ def show_grid_page():
         p_col3.button("Next ➡️", on_click=increment_page, disabled=(current_page >= total_pages), key="next_top", use_container_width=True)
         st.write("---")
 
-    # --- PAGE HEADER ---
     h_col1, h_col2, h_col3, h_col4 = st.columns([4, 3, 3, 2])
     with h_col1:
         st.title(f"📊 {project['name']}")
     
-    # ADMIN ONLY: File Uploader
     if is_admin:
         with h_col2:
             st.markdown("<div><br></div>", unsafe_allow_html=True)
-            # Add summary button
             if st.button("📈 Summary View", use_container_width=True):
                 st.session_state.page = 'summary'
                 st.rerun()
-                
             new_excel = st.file_uploader("Replace Source Grid", type=['xlsx', 'xls'], key=f"replace_{project_id}", label_visibility="collapsed")
     
-    # ALL USERS: Download Button
     with h_col3:
         st.markdown("<div><br></div>", unsafe_allow_html=True)
         excel_data = create_download_excel(project)
         if excel_data:
             st.download_button("📥 Download Current Grid", excel_data, f"{project['name']}_updated.xlsx", use_container_width=True)
     
-    # ADMIN ONLY: Back Button
     with h_col4:
         st.markdown("<div><br></div>", unsafe_allow_html=True)
         if is_admin:
@@ -927,7 +895,6 @@ def show_grid_page():
                     del st.session_state[page_state_key]
                 st.rerun()
 
-    # --- FILE REPLACEMENT LOGIC (ADMIN ONLY) ---
     if is_admin and 'new_excel' in locals() and new_excel:
         with st.spinner("Parsing new file and saving to cloud... Please wait."):
             products, attrs, dists, filters = load_and_parse_excel(new_excel, project.get('image_mappings', {}))
@@ -944,94 +911,64 @@ def show_grid_page():
             time.sleep(1); st.rerun()
             return
 
-    # --- PENDING CHANGES ACTION BAR (ADMIN ONLY) ---
     if is_admin and project.get('pending_changes'):
         st.info(f"You have **{len(project['pending_changes'])}** pending change(s). Click 'Apply All Changes' to make them permanent.")
-        
         action_cols = st.columns(2)
         with action_cols[0]:
             if st.button("✅ Apply All Changes", type="primary", use_container_width=True):
-                with st.spinner("Applying and saving changes..."):
+                with st.spinner("Applying..."):
                     for product in project['products_data']:
                         if product['original_index'] in project['pending_changes']:
                             product['original_description'] = product['description']
                             product['original_price'] = product['price']
                             product['original_attributes'] = product['attributes'].copy()
-                    
                     project['pending_changes'] = {}
                     update_project_timestamp(project_id)
                     auto_save_project(project_id)
-                    
-                    st.success("All changes have been applied and saved.")
+                    st.success("Saved!")
                     time.sleep(1); st.rerun()
-
         with action_cols[1]:
             if st.button("❌ Reset All Changes", use_container_width=True):
-                with st.spinner("Reverting all pending changes..."):
+                with st.spinner("Reverting..."):
                     for product in project['products_data']:
                         if product['original_index'] in project['pending_changes']:
                             product['description'] = product['original_description']
                             product['price'] = product['original_price']
                             product['attributes'] = product['original_attributes'].copy()
-                    
                     project['pending_changes'] = {}
-                    st.warning("All pending changes have been discarded."); time.sleep(1); st.rerun()
+                    st.warning("Discarded."); time.sleep(1); st.rerun()
 
-    # --- ADD/REPLACE IMAGES SECTION (ADMIN ONLY) ---
     if is_admin:
         with st.container(border=True):
             st.markdown('<p style="font-size: 1.1rem; font-weight: bold; margin-top: -5px; margin-bottom: 5px;">🖼️ Add / Replace Images</p>', unsafe_allow_html=True)
-            
-            new_images = st.file_uploader(
-                "Upload new images. Filenames must match Product IDs (e.g., '123.png'). Existing images will be replaced.",
-                type=['png', 'jpg', 'jpeg'],
-                accept_multiple_files=True,
-                key=f"add_images_{project_id}",
-                label_visibility="collapsed"
-            )
-
+            new_images = st.file_uploader("Upload new images.", type=['png', 'jpg', 'jpeg'], accept_multiple_files=True, key=f"add_images_{project_id}", label_visibility="collapsed")
             if new_images:
-                with st.spinner(f"Matching {len(new_images)} image(s) to products..."):
+                with st.spinner(f"Matching {len(new_images)} image(s)..."):
                     product_lookup = {p['product_id'].lower().strip(): p for p in project['products_data']}
                     updated_count = 0
                     for image_file in new_images:
-                        product_id_from_filename = os.path.splitext(image_file.name)[0].lower().strip()
-                        if product_id_from_filename in product_lookup:
-                            product_lookup[product_id_from_filename]['image_data'] = (image_file.name, image_file.getvalue())
+                        pid = os.path.splitext(image_file.name)[0].lower().strip()
+                        if pid in product_lookup:
+                            product_lookup[pid]['image_data'] = (image_file.name, image_file.getvalue())
                             updated_count += 1
-
                     if updated_count > 0:
-                        st.text(f"Found {updated_count} matches. Uploading to cloud storage...")
+                        st.text(f"Found {updated_count} matches. Uploading...")
                         updated_mappings = auto_save_project(project_id)
                         if updated_mappings:
                             project['image_mappings'] = updated_mappings
                             for p_id, p_data in product_lookup.items():
                                 if p_id in updated_mappings and "public_url" in updated_mappings[p_id]:
                                     p_data['image_url'] = updated_mappings[p_id]["public_url"]
-                            
-                            st.success(f"✅ Successfully added/updated {updated_count} image(s).")
+                            st.success(f"✅ Added {updated_count} image(s).")
                             time.sleep(1); st.rerun(); return
-                        else:
-                            st.error("Failed to save the project after uploading images.")
-                    else:
-                        st.warning(f"⚠️ No products found matching the {len(new_images)} uploaded images.")
+                        else: st.error("Save failed.")
+                    else: st.warning(f"⚠️ No matches.")
 
     if 'editing_product' in st.session_state:
         show_edit_modal(st.session_state.editing_product, project)
 
-    # --- VIEW/SORT CONTROLS ---
     with st.container(border=True):
-        st.markdown("""
-            <style>
-                .stMultiSelect div[data-baseweb="select"] > div:first-child {
-                    max-height: 100px; overflow-y: auto;
-                }
-                .stMultiSelect [data-baseweb="tag"] span {
-                    font-size: 12px !important; 
-                }
-            </style>
-        """, unsafe_allow_html=True)
-
+        st.markdown("""<style>.stMultiSelect div[data-baseweb="select"] > div:first-child {max-height: 100px; overflow-y: auto;} .stMultiSelect [data-baseweb="tag"] span {font-size: 12px !important;}</style>""", unsafe_allow_html=True)
         if f'view_options_{project_id}' not in st.session_state:
             st.session_state[f'view_options_{project_id}'] = {'visible_attributes': ['Description', 'Price'] + project['attributes'], 'sort_by': 'product_id', 'sort_ascending': True}
         view_options = st.session_state[f'view_options_{project_id}']
@@ -1039,7 +976,6 @@ def show_grid_page():
         def fmt(name): return name.replace('ATT ', '')
         
         st.markdown('<p style="font-size: 1.1rem; font-weight: bold; margin-top: -5px; margin-bottom: 5px;">View & Sort Options</p>', unsafe_allow_html=True)
-        
         v_col1, v_col2 = st.columns(2)
         v_col1.markdown("<p style='font-size: 13px; font-weight: bold; margin-bottom: 0px;'>Show Attributes:</p>", unsafe_allow_html=True)
         view_options['visible_attributes'] = v_col1.multiselect("Show Attributes:", all_fields, default=view_options['visible_attributes'], format_func=fmt, label_visibility="collapsed")
@@ -1052,28 +988,21 @@ def show_grid_page():
         s_col2.markdown("<p style='font-size: 13px; font-weight: bold; margin-bottom: 0px;'>Order:</p>", unsafe_allow_html=True)
         view_options['sort_ascending'] = s_col2.radio("Order:", ["🔼", "🔽"], horizontal=True, index=0 if view_options['sort_ascending'] else 1, label_visibility="collapsed") == "🔼"
 
-    # --- SIDEBAR: SHARE & FILTERS ---
     with st.sidebar:
-        # 1. Share Section (Admin Only)
         if is_admin:
             st.header("🔗 Share Project")
             with st.expander("Generate Client Link"):
-                # URL must exactly match your browser URL including https://
                 base_url = "https://visualgridvg.streamlit.app/" 
-                
                 client_link = f"{base_url}?project={project_id}&mode=client"
                 st.code(client_link, language="text")
                 st.info("⚠️ This link opens the project in 'Read-Only' mode.")
             st.divider()
 
-        # 2. Filters Section (Now correctly indented)
         st.header("🔍 Filters")
         attribute_filters = {attr: st.multiselect(attr.replace('ATT ', ''), ['All'] + project['filter_options'].get(attr, []), default=['All']) for attr in project['attributes']}
         dist_filters = st.multiselect("Distribution", ['All'] + [d.replace('DIST ', '') for d in project['distributions']], default=['All']) if project['distributions'] else []
 
-    # --- FILTERING, SORTING, AND DISPLAY ---
     filtered_products = apply_filters(project['products_data'], attribute_filters, dist_filters)
-    
     sort_by, is_ascending = view_options['sort_by'], view_options['sort_ascending']
     def get_sort_key(p):
         if sort_by == 'product_id': return int(p['product_id']) if p['product_id'].isdigit() else p['product_id']
@@ -1082,7 +1011,6 @@ def show_grid_page():
         return p['attributes'].get(sort_by, '').lower()
     
     sorted_products = sorted(filtered_products, key=get_sort_key, reverse=not is_ascending)
-    
     st.markdown(f"### Showing {len(sorted_products)} of {len(project['products_data'])} products")
 
     total_pages = max(1, (len(sorted_products) + PRODUCTS_PER_PAGE - 1) // PRODUCTS_PER_PAGE)
@@ -1109,28 +1037,16 @@ def auto_save_project(project_id):
     """
     if st.session_state.get('firestore_manager'):
         project = st.session_state.projects[project_id]
-        # --- THIS IS THE FIX ---
-        # Capture and return the result from the manager's save function.
         return st.session_state.firestore_manager.save_project(project_id, project)
-    
-    # Return False if the manager doesn't exist, indicating failure.
     return False
 
 def main():
     """Main application router."""
-    
-    # --- 1. Handle Incoming URL Parameters ---
-    # Check for 'client' mode in the URL
-    if st.query_params.get("mode") == "client":
-        st.session_state.client_mode = True
-    else:
-        st.session_state.client_mode = False
+    if st.query_params.get("mode") == "client": st.session_state.client_mode = True
+    else: st.session_state.client_mode = False
 
-    # Check if the user arrived via a specific project link
     if "project" in st.query_params and not st.session_state.current_project:
         target_project_id = st.query_params["project"]
-        
-        # Verify it's a valid project before switching
         if ensure_project_loaded(target_project_id):
             st.session_state.current_project = target_project_id
             st.session_state.page = 'grid'
@@ -1138,24 +1054,16 @@ def main():
             st.query_params.clear()
             st.error(f"Project {target_project_id} not found.")
 
-    # --- 2. Enforce Client Mode Routing ---
-    # If in client mode, FORCE the page to be 'grid'. 
-    # This prevents them from seeing the project list.
     if st.session_state.get("client_mode"):
         if not st.session_state.current_project:
             st.error("No project specified for client view.")
-            return # Stop execution
+            return
         st.session_state.page = 'grid'
 
-    # --- 3. Standard Routing ---
-    if st.session_state.page == 'projects':
-        show_projects_page()
-    elif st.session_state.page == 'create_project':
-        show_create_project_page()
-    elif st.session_state.page == 'grid':
-        show_grid_page()
-    elif st.session_state.page == 'summary': # Added route for summary
-        show_summary_page()
+    if st.session_state.page == 'projects': show_projects_page()
+    elif st.session_state.page == 'create_project': show_create_project_page()
+    elif st.session_state.page == 'grid': show_grid_page()
+    elif st.session_state.page == 'summary': show_summary_page()
 
 if __name__ == "__main__":
     main()
