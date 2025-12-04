@@ -758,7 +758,6 @@ def show_summary_page():
         
         st.divider()
         
-        # --- NEW: Filters in Summary View ---
         st.header("🔍 Filters")
         attribute_filters = {
             attr: st.multiselect(
@@ -778,20 +777,17 @@ def show_summary_page():
                 default=['All'], 
                 key="sum_filt_dist"
             )
-        # ------------------------------------
 
         st.divider()
-        # Container for "Save Changes" button (populated later)
         status_container = st.container()
 
     # --- Data Processing (With Filters) ---
-    # Apply the filters to get the subset of data
     filtered_products = apply_filters(
         project['products_data'], 
         attribute_filters, 
         dist_filters,
         project.get('pending_changes', {}),
-        False # show_pending_only (default to False for summary view)
+        False 
     )
 
     df = pd.DataFrame(filtered_products)
@@ -800,7 +796,6 @@ def show_summary_page():
         st.warning("No product data matches the current filters.")
         return
 
-    # Flatten attributes for easy charting
     if 'attributes' in df.columns:
         attr_df = pd.DataFrame(list(df['attributes']))
         df = pd.concat([df.drop('attributes', axis=1), attr_df], axis=1)
@@ -809,36 +804,12 @@ def show_summary_page():
     
     st.markdown(f"### Showing {len(df)} Products")
 
-    # --- NEW: Price Distribution Visualization ---
-    if 'price' in df.columns:
-        # Create a numeric copy for plotting (coerce errors to NaN)
-        df['price_num'] = pd.to_numeric(df['price'], errors='coerce')
-        valid_prices = df.dropna(subset=['price_num'])
-        
-        if not valid_prices.empty:
-            with st.container(border=True):
-                st.subheader("Price Distribution")
-                
-                # Use a specific, uneditable key for the graph
-                fig = px.histogram(
-                    valid_prices, 
-                    x="price_num", 
-                    nbins=20, 
-                    labels={'price_num': 'Price ($)'},
-                    template="plotly_white",
-                    color_discrete_sequence=['#636EFA']
-                )
-                fig.update_layout(bargap=0.1, margin=dict(t=10, b=10))
-                st.plotly_chart(fig, use_container_width=True)
-    # ---------------------------------------------
-
-    # --- Render Attribute Charts & Inputs ---
+    # --- 1. Attribute Charts (Rendered First) ---
     for attr in selected_attrs:
         with st.container(border=True):
             col_header, _ = st.columns([3, 1])
             original_attr_name = attr.replace('ATT ', '')
             
-            # Attribute Rename Input
             if is_admin:
                 new_attr_name_input = st.text_input(
                     f"Attribute Name ({attr})", 
@@ -870,7 +841,6 @@ def show_summary_page():
 
             with c_data:
                 st.write("**Edit Option Names**" if is_admin else "**Options Legend**")
-                # Get unique options from the FILTERED dataframe for display
                 options = sorted(list(df[attr].dropna().unique())) if attr in df.columns else []
                 
                 container = st.container()
@@ -881,7 +851,6 @@ def show_summary_page():
                     for val in options:
                         if is_admin:
                             c_opt_1, c_opt_2 = st.columns([3, 7])
-                            # Count calculation based on filtered DF
                             count = len(df[df[attr]==val])
                             c_opt_1.write(f"{val} ({count})")
                             
@@ -894,7 +863,28 @@ def show_summary_page():
                             count = len(df[df[attr]==val])
                             st.write(f"- {val} ({count})")
 
-    # --- SAVE LOGIC (IN SIDEBAR) ---
+    # --- 2. Price Distribution (Moved to Bottom) ---
+    if 'price' in df.columns:
+        df['price_num'] = pd.to_numeric(df['price'], errors='coerce')
+        valid_prices = df.dropna(subset=['price_num'])
+        
+        if not valid_prices.empty:
+            with st.container(border=True):
+                st.subheader("Price Distribution")
+                
+                fig = px.histogram(
+                    valid_prices, 
+                    x="price_num", 
+                    nbins=20, 
+                    labels={'price_num': 'Price ($)'},
+                    template="plotly_white",
+                    color_discrete_sequence=['#636EFA']
+                )
+                # UPDATED: Set explicit height to 250px
+                fig.update_layout(bargap=0.1, margin=dict(t=20, b=20), height=250)
+                st.plotly_chart(fig, use_container_width=True)
+
+    # --- Save Logic ---
     if is_admin and pending_renames:
         with status_container:
             st.warning(f"⚠️ {len(pending_renames)} Pending Changes")
