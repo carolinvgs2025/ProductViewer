@@ -1009,18 +1009,39 @@ def show_grid_page():
     if 'editing_product' in st.session_state:
         show_edit_modal(st.session_state.editing_product, project)
 
-    with st.container(border=True):
+with st.container(border=True):
         st.markdown("""<style>.stMultiSelect div[data-baseweb="select"] > div:first-child {max-height: 100px; overflow-y: auto;} .stMultiSelect [data-baseweb="tag"] span {font-size: 12px !important;}</style>""", unsafe_allow_html=True)
+        
         if f'view_options_{project_id}' not in st.session_state:
             st.session_state[f'view_options_{project_id}'] = {'visible_attributes': ['Description', 'Price'] + project['attributes'], 'sort_by': 'product_id', 'sort_ascending': True}
         view_options = st.session_state[f'view_options_{project_id}']
+        
         all_fields = ['Description', 'Price'] + project['attributes']
         def fmt(name): return name.replace('ATT ', '')
         
         st.markdown('<p style="font-size: 1.1rem; font-weight: bold; margin-top: -5px; margin-bottom: 5px;">View & Sort Options</p>', unsafe_allow_html=True)
         v_col1, v_col2 = st.columns(2)
         v_col1.markdown("<p style='font-size: 13px; font-weight: bold; margin-bottom: 0px;'>Show Attributes:</p>", unsafe_allow_html=True)
-        view_options['visible_attributes'] = v_col1.multiselect("Show Attributes:", all_fields, default=view_options['visible_attributes'], format_func=fmt, label_visibility="collapsed")
+        
+        # --- FIX: Add Key & Safety Check ---
+        ms_key = f"ms_vis_attr_{project_id}"
+        
+        # Safety: If the widget state contains old/invalid attributes (e.g. after a rename), 
+        # force a reset to the source of truth (view_options) to prevent a crash.
+        if ms_key in st.session_state:
+            current_selection = st.session_state[ms_key]
+            if not set(current_selection).issubset(set(all_fields)):
+                del st.session_state[ms_key]
+
+        view_options['visible_attributes'] = v_col1.multiselect(
+            "Show Attributes:", 
+            all_fields, 
+            default=view_options['visible_attributes'], 
+            format_func=fmt, 
+            label_visibility="collapsed",
+            key=ms_key  # Adding this key fixes the "double click" issue
+        )
+        # -----------------------------------
         
         s_opts = ['product_id'] + all_fields
         s_col1, s_col2 = v_col2.columns([2,1])
@@ -1029,7 +1050,7 @@ def show_grid_page():
         view_options['sort_by'] = s_col1.selectbox("Sort By:", s_opts, index=sort_by_index, format_func=fmt, label_visibility="collapsed")
         s_col2.markdown("<p style='font-size: 13px; font-weight: bold; margin-bottom: 0px;'>Order:</p>", unsafe_allow_html=True)
         view_options['sort_ascending'] = s_col2.radio("Order:", ["🔼", "🔽"], horizontal=True, index=0 if view_options['sort_ascending'] else 1, label_visibility="collapsed") == "🔼"
-
+        
     with st.sidebar:
         if is_admin:
             st.header("🔗 Share Project")
