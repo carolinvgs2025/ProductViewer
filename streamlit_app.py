@@ -8,6 +8,7 @@ from io import BytesIO
 from datetime import datetime
 import uuid
 from PIL import Image, ImageOps
+import plotly.express as px # Added for Summary Page
 
 # This assumes your firestore_manager.py file is present and correct
 from firestore_manager import (
@@ -307,7 +308,20 @@ def load_and_parse_excel(uploaded_file, image_url_mappings):
         
         products = []
         for idx, row in df.iterrows():
-            product_id = str(row[id_col]).strip()
+            
+            # --- ROBUST ID HANDLING ---
+            raw_id = row[id_col]
+            # If Excel gave us a float like 123.0, convert to integer 123 first
+            if isinstance(raw_id, float) and raw_id.is_integer():
+                product_id = str(int(raw_id)).strip()
+            else:
+                product_id = str(raw_id).strip()
+            
+            # Double check for string ".0" suffix just in case
+            if product_id.endswith(".0"):
+                product_id = product_id[:-2]
+            # --------------------------
+
             description = str(row[desc_col]).strip()
             
             try:
@@ -577,6 +591,40 @@ def show_create_project_page():
         uploaded_excel = col1.file_uploader("Upload Product Excel Grid *", type=['xlsx', 'xls'])
         uploaded_images = col2.file_uploader("Upload Product Images", type=['png', 'jpg', 'jpeg'], accept_multiple_files=True)
         
+        # --- NEW: Match Preview ---
+        if uploaded_excel and uploaded_images:
+            # 1. Quick Parse just for counting
+            try:
+                df_preview = pd.read_excel(uploaded_excel)
+                # Find ID col
+                df_preview.columns = [str(c).strip() for c in df_preview.columns]
+                id_col = next((c for c in df_preview.columns if 'product id' in c.lower()), None)
+                
+                if id_col:
+                    # FIX: Apply same robust logic to preview
+                    excel_ids = set()
+                    for x in df_preview[id_col].dropna():
+                        if isinstance(x, float) and x.is_integer():
+                            excel_ids.add(str(int(x)).strip().lower())
+                        else:
+                            clean_id = str(x).strip().lower()
+                            if clean_id.endswith(".0"): clean_id = clean_id[:-2]
+                            excel_ids.add(clean_id)
+                    
+                    image_names = set(os.path.splitext(img.name)[0].strip().lower() for img in uploaded_images)
+                    
+                    matches = excel_ids.intersection(image_names)
+                    match_count = len(matches)
+                    
+                    if match_count == 0:
+                        st.error(f"⚠️ **0 matches found!** Check your filenames. (Excel has {len(excel_ids)} IDs, Uploaded {len(image_names)} images)")
+                        st.write("Example Excel ID:", list(excel_ids)[0] if excel_ids else "None")
+                        st.write("Example Filename:", list(image_names)[0] if image_names else "None")
+                    else:
+                        st.success(f"✅ **{match_count}** images matched out of {len(uploaded_images)} uploaded.")
+            except Exception:
+                pass # Ignore errors during preview
+        
         submitted = st.form_submit_button("🚀 Create Project", type="primary", use_container_width=True)
         
         if submitted:
@@ -585,25 +633,18 @@ def show_create_project_page():
             else:
                 with st.spinner("Creating project and uploading assets..."):
                     # 1. Parse the Excel file. 
-                    # Pass an empty dict {} for mappings because we don't have URLs yet.
                     excel_bytes = uploaded_excel.getvalue()
                     products, attrs, dists, filters = load_and_parse_excel(BytesIO(excel_bytes), {})
                     
-                    # 2. Manually match uploaded images to the parsed products
+                    # 2. Manually match uploaded images
                     if uploaded_images:
-                        # Create a lookup map for the products (lowercase ID -> product dict)
                         product_lookup = {p['product_id'].lower().strip(): p for p in products}
-                        
-                        # Loop through uploaded images and attach data to matching products
                         for img in uploaded_images:
-                            # Normalize filename to match product ID logic
                             fname_id = os.path.splitext(img.name)[0].lower().strip()
-                            
                             if fname_id in product_lookup:
-                                # Inject the tuple (filename, bytes) so save_project detects it
                                 product_lookup[fname_id]['image_data'] = (img.name, img.getvalue())
 
-                    # 3. Create the project structure
+                    # 3. Create structure
                     project_id = create_new_project(project_name, project_description)
                     project = st.session_state.projects[project_id]
                     
@@ -614,33 +655,213 @@ def show_create_project_page():
                         'filter_options': filters,
                         'excel_file_data': excel_bytes,
                         'excel_filename': uploaded_excel.name,
-                        # We don't strictly need 'uploaded_images' here anymore since 
-                        # we injected the data into 'products_data', but keeping it is harmless.
                     })
                     
-                    # 4. Save to cloud (this will now process the injected image_data)
+                    # 4. Save to cloud
                     if st.session_state.get('firestore_manager'):
                         st.session_state.firestore_manager.save_project(project_id, project)
                     
-                    # Delete the local "stale" version (which has bytes but no URLs)
                     if project_id in st.session_state.projects:
                         del st.session_state.projects[project_id]
                     
-                    # Immediately re-fetch the "fresh" version from the Cloud (which has the URLs)
                     ensure_project_loaded(project_id)
 
                     st.success(f"✅ Project '{project_name}' created!")
                     st.balloons()
                     time.sleep(1)
                     
-                    # --- THIS IS THE CHANGE ---
-                    st.query_params["project"] = project_id # Set URL for the new project
-
-                    # 5. Load the grid page
+                    st.query_params["project"] = project_id 
                     st.session_state.current_project = project_id
                     st.session_state.page = 'grid'
                     st.rerun()
-                    
+
+def show_summary_page():
+    """
+    Shows a summary dashboard with pie charts for attributes.
+    Allows editing attribute names and option values globally.
+    """
+    if not st.session_state.current_project or st.session_state.current_project not in st.session_state.projects:
+        st.error("No project loaded.")
+        st.session_state.page = 'projects'; st.rerun()
+        return
+
+    project = st.session_state.projects[st.session_state.current_project]
+    project_id = project['id']
+    is_admin = not st.session_state.get("client_mode", False)
+
+    # --- Header ---
+    c1, c2 = st.columns([6, 1])
+    with c1:
+        st.title(f"📊 Summary: {project['name']}")
+    with c2:
+        if st.button("⬅️ Back to Grid", use_container_width=True):
+            st.session_state.page = 'grid'
+            st.rerun()
+            
+    # --- Sidebar: Attribute Selection ---
+    all_attrs = project.get('attributes', [])
+    clean_attrs = [a.replace('ATT ', '') for a in all_attrs]
+    
+    with st.sidebar:
+        st.header("View Options")
+        selected_indices = st.multiselect(
+            "Select Attributes to Summarize:", 
+            range(len(all_attrs)), 
+            format_func=lambda i: clean_attrs[i],
+            default=range(len(all_attrs))
+        )
+    
+    selected_attrs = [all_attrs[i] for i in selected_indices]
+    
+    # --- Data Processing for Charts ---
+    # Create a DataFrame for easy plotting
+    df = pd.DataFrame(project['products_data'])
+    # Expand attributes dict into columns
+    if not df.empty:
+        attr_df = pd.DataFrame(list(df['attributes']))
+        df = pd.concat([df.drop('attributes', axis=1), attr_df], axis=1)
+
+    # --- Change Tracking for Renames ---
+    # We collect all changes in session_state variables and apply them on button click
+    # Changes are tracked by looking at the input widgets values vs original values
+    
+    pending_renames = [] # List of tuples: (type, old_name, new_name, parent_attr)
+    
+    if df.empty:
+        st.warning("No product data to summarize.")
+        return
+
+    # --- Render Charts & Edit Inputs ---
+    for attr in selected_attrs:
+        with st.container(border=True):
+            # 1. Attribute Header (Editable)
+            col_header, _ = st.columns([3, 1])
+            original_attr_name = attr.replace('ATT ', '')
+            
+            # Input for Attribute Name
+            if is_admin:
+                new_attr_name_input = st.text_input(
+                    f"Attribute Name ({attr})", 
+                    value=original_attr_name, 
+                    key=f"rename_attr_{attr}",
+                    label_visibility="collapsed"
+                )
+                
+                # Check for Rename
+                if new_attr_name_input != original_attr_name:
+                    # Reconstruct full ATT key if needed, or just use raw if logic changed
+                    # Assuming we keep 'ATT ' prefix in backend? 
+                    # Prompt says "change attribute name". Let's assume user just types "Brand".
+                    # We might need to keep "ATT " prefix if other logic depends on it.
+                    # For now, let's assume we map "ATT Old" -> "ATT New"
+                    full_new_name = f"ATT {new_attr_name_input}"
+                    pending_renames.append(("ATTR", attr, full_new_name, None))
+                    st.caption(f"✏️ *Will rename to: {full_new_name}*")
+            else:
+                st.subheader(original_attr_name)
+
+            # 2. Charts & Option Edits
+            c_chart, c_data = st.columns([1, 1])
+            
+            with c_chart:
+                # Count values
+                if attr in df.columns:
+                    counts = df[attr].value_counts().reset_index()
+                    counts.columns = ['Option', 'Count']
+                    fig = px.pie(counts, values='Count', names='Option', hole=0.4)
+                    fig.update_layout(margin=dict(t=0, b=0, l=0, r=0), height=300)
+                    st.plotly_chart(fig, use_container_width=True)
+                else:
+                    st.write("No data found for this attribute.")
+
+            with c_data:
+                st.write("**Edit Option Names**" if is_admin else "**Options Legend**")
+                # Get unique values for this attribute
+                options = sorted(list(df[attr].dropna().unique())) if attr in df.columns else []
+                
+                # Use an expander if too many options
+                container = st.container()
+                if len(options) > 10:
+                    container = st.expander(f"Show all {len(options)} options")
+                
+                with container:
+                    for val in options:
+                        if is_admin:
+                            c_opt_1, c_opt_2 = st.columns([3, 7])
+                            c_opt_1.write(f"{val} ({len(df[df[attr]==val])})")
+                            new_val = c_opt_2.text_input(
+                                "Rename", 
+                                value=val, 
+                                key=f"rename_val_{attr}_{val}", 
+                                label_visibility="collapsed"
+                            )
+                            if new_val != val:
+                                pending_renames.append(("OPTION", val, new_val, attr))
+                        else:
+                            st.write(f"- {val} ({len(df[df[attr]==val])})")
+
+    # --- Apply Changes Section ---
+    if is_admin and pending_renames:
+        st.divider()
+        st.warning(f"You have {len(pending_renames)} pending name changes.")
+        
+        if st.button("💾 Confirm & Save All Name Changes", type="primary"):
+            with st.spinner("Applying global renames..."):
+                apply_bulk_renames(project, pending_renames)
+                
+                # Save to cloud
+                auto_save_project(project_id)
+                update_project_timestamp(project_id)
+                
+                st.success("Changes applied successfully!")
+                time.sleep(1)
+                st.rerun()
+
+def apply_bulk_renames(project, renames):
+    """
+    Applies a list of renames to the project structure in-place.
+    renames: list of (type, old, new, parent_attr)
+    """
+    products = project['products_data']
+    
+    # 1. Process Option Renames first (values inside attributes)
+    option_renames = [r for r in renames if r[0] == "OPTION"]
+    for _, old_val, new_val, parent_attr in option_renames:
+        # Update every product
+        for p in products:
+            if p['attributes'].get(parent_attr) == old_val:
+                p['attributes'][parent_attr] = new_val
+        
+        # Update filter_options list
+        if parent_attr in project['filter_options']:
+            opts = project['filter_options'][parent_attr]
+            if old_val in opts:
+                opts.remove(old_val)
+                if new_val not in opts:
+                    opts.append(new_val)
+                opts.sort()
+
+    # 2. Process Attribute Key Renames
+    attr_renames = [r for r in renames if r[0] == "ATTR"]
+    for _, old_attr, new_attr, _ in attr_renames:
+        # Skip if no change (sanity check)
+        if old_attr == new_attr: continue
+        
+        # Update Attribute List
+        if old_attr in project['attributes']:
+            idx = project['attributes'].index(old_attr)
+            project['attributes'][idx] = new_attr
+            
+        # Update Products Keys
+        for p in products:
+            if old_attr in p['attributes']:
+                p['attributes'][new_attr] = p['attributes'].pop(old_attr)
+        
+        # Update Filter Options Key
+        if old_attr in project['filter_options']:
+            project['filter_options'][new_attr] = project['filter_options'].pop(old_attr)
+
+
 def show_grid_page():
     """Display the product grid for the current project."""
     if not st.session_state.current_project or st.session_state.current_project not in st.session_state.projects:
@@ -681,6 +902,11 @@ def show_grid_page():
     if is_admin:
         with h_col2:
             st.markdown("<div><br></div>", unsafe_allow_html=True)
+            # Add summary button
+            if st.button("📈 Summary View", use_container_width=True):
+                st.session_state.page = 'summary'
+                st.rerun()
+                
             new_excel = st.file_uploader("Replace Source Grid", type=['xlsx', 'xls'], key=f"replace_{project_id}", label_visibility="collapsed")
     
     # ALL USERS: Download Button
@@ -830,14 +1056,16 @@ def show_grid_page():
     with st.sidebar:
         # 1. Share Section (Admin Only)
         if is_admin:
-            st.header("🔗 Share Project - NOT READY FOR FULL USE")
+            st.header("🔗 Share Project")
             with st.expander("Generate Client Link"):
-                base_url = "https://visualgridvg.streamlit.app/"  # URL must exactly match your browser URL including https://
+                # URL must exactly match your browser URL including https://
+                base_url = "https://visualgridvg.streamlit.app/" 
+                
                 client_link = f"{base_url}?project={project_id}&mode=client"
                 st.code(client_link, language="text")
                 st.info("⚠️ This link opens the project in 'Read-Only' mode.")
             st.divider()
-            
+
         # 2. Filters Section (Now correctly indented)
         st.header("🔍 Filters")
         attribute_filters = {attr: st.multiselect(attr.replace('ATT ', ''), ['All'] + project['filter_options'].get(attr, []), default=['All']) for attr in project['attributes']}
@@ -926,6 +1154,8 @@ def main():
         show_create_project_page()
     elif st.session_state.page == 'grid':
         show_grid_page()
+    elif st.session_state.page == 'summary': # Added route for summary
+        show_summary_page()
 
 if __name__ == "__main__":
     main()
