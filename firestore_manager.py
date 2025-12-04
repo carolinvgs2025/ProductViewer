@@ -283,23 +283,25 @@ class ProjectFirestoreManager:
 
     def delete_project(self, project_id: str) -> bool:
         try:
-            doc = self.db.collection(self.collection_name).document(project_id).get()
-            if doc.exists:
-                v = doc.to_dict() or {}
-                for meta in v.get("image_mappings", {}).values():
-                    path = meta.get("blob_path") if isinstance(meta, dict) else _blob_path_from_url(meta, self.bucket_name)
-                    if path: 
-                        try: self._bucket().blob(path).delete()
-                        except: pass
-                for key in ["excel_blob_path", "products_blob_path"]:
-                    if v.get(key):
-                        try: self._bucket().blob(v[key]).delete()
-                        except: pass
+            # 1. Delete ALL Storage Files under projects/{project_id}/
+            # In Google Cloud Storage, "folders" are just prefixes. 
+            # We list every blob starting with this project's ID and delete it.
+            prefix = f"projects/{project_id}/"
+            blobs = list(self._bucket().list_blobs(prefix=prefix))
+            
+            for blob in blobs:
+                try:
+                    blob.delete()
+                except Exception:
+                    pass # Continue deleting other files even if one fails
 
+            # 2. Delete the Firestore Document
             self.db.collection(self.collection_name).document(project_id).delete()
             return True
+            
         except Exception as e:
-            st.error(f"Error deleting: {e}"); return False
+            st.error(f"Error deleting: {e}")
+            return False
 
 # =========================
 # App Integration Helpers
