@@ -635,13 +635,14 @@ def show_create_project_page():
     
     with st.form(key="new_project_form"):
         project_name = st.text_input("Project Name *", placeholder="e.g., Q1 2024 Product Launch")
-        project_description = st.text_area("Description (optional)")
+        
+        # --- REMOVED: Description Input ---
         
         col1, col2 = st.columns(2)
         uploaded_excel = col1.file_uploader("Upload Product Excel Grid *", type=['xlsx', 'xls'])
         uploaded_images = col2.file_uploader("Upload Product Images", type=['png', 'jpg', 'jpeg'], accept_multiple_files=True)
         
-        # --- NEW: Match Preview ---
+        # --- Match Preview Logic ---
         if uploaded_excel and uploaded_images:
             try:
                 df_preview = pd.read_excel(uploaded_excel)
@@ -691,8 +692,8 @@ def show_create_project_page():
                             if fname_id in product_lookup:
                                 product_lookup[fname_id]['image_data'] = (img.name, img.getvalue())
 
-                    # 3. Create structure
-                    project_id = create_new_project(project_name, project_description)
+                    # 3. Create structure (Updated to remove description argument)
+                    project_id = create_new_project(project_name)
                     project = st.session_state.projects[project_id]
                     
                     project.update({
@@ -721,6 +722,7 @@ def show_create_project_page():
                     st.session_state.current_project = project_id
                     st.session_state.page = 'grid'
                     st.rerun()
+                    
 
 def show_summary_page():
     """Shows a summary dashboard with pie charts, price distribution, and bulk editing."""
