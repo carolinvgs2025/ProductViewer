@@ -1009,7 +1009,7 @@ def show_grid_page():
     if 'editing_product' in st.session_state:
         show_edit_modal(st.session_state.editing_product, project)
 
-with st.container(border=True):
+    with st.container(border=True):
         st.markdown("""<style>.stMultiSelect div[data-baseweb="select"] > div:first-child {max-height: 100px; overflow-y: auto;} .stMultiSelect [data-baseweb="tag"] span {font-size: 12px !important;}</style>""", unsafe_allow_html=True)
         
         if f'view_options_{project_id}' not in st.session_state:
