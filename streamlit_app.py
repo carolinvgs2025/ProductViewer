@@ -379,25 +379,73 @@ def apply_filters(products, attribute_filters, distribution_filters):
     return filtered_products
 
 def create_download_excel(project):
-    """Create Excel file with current changes for download."""
+    """Create Excel file with current changes for download, highlighting changes in yellow."""
     if not project['products_data']:
         return None
+    
+    # 1. Prepare Data Structure
+    attributes = project['attributes']
+    distributions = project['distributions']
+    headers = ["Product ID", "Description"] + attributes + distributions + ["Price"]
     
     data = []
     for product in project['products_data']:
         row = [product["product_id"], product["description"]]
-        row.extend(product["attributes"].get(attr, "") for attr in project['attributes'])
-        row.extend("X" if product["distribution"].get(dist, False) else "" for dist in project['distributions'])
-        row.append(float(product["price"]) if product["price"] else 0.0)
+        row.extend(product["attributes"].get(attr, "") for attr in attributes)
+        row.extend("X" if product["distribution"].get(dist, False) else "" for dist in distributions)
+        # Ensure price is a number for Excel math, even though we compare as strings
+        try:
+            p_val = float(product["price"]) if product["price"] else 0.0
+        except:
+            p_val = 0.0
+        row.append(p_val)
         data.append(row)
     
-    headers = ["Product ID", "Description"] + project['attributes'] + project['distributions'] + ["Price"]
     df = pd.DataFrame(data, columns=headers)
     
+    # 2. Write to Excel and Apply Styles
     output = BytesIO()
+    # Note: We need PatternFill for the styling (imported from openpyxl.styles)
+    from openpyxl.styles import PatternFill 
+
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
         df.to_excel(writer, index=False, sheet_name='Products')
-    
+        
+        # Access the workbook and sheet to apply styles
+        workbook = writer.book
+        ws = writer.sheets['Products']
+        yellow_fill = PatternFill(start_color="FFFF00", end_color="FFFF00", fill_type="solid")
+        
+        # 3. Iterate Rows and Check for Changes
+        # Excel rows are 1-based. Header is Row 1. Data starts at Row 2.
+        for i, product in enumerate(project['products_data']):
+            excel_row = i + 2
+            
+            # --- Check Description (Column 2) ---
+            if product.get('description') != product.get('original_description'):
+                ws.cell(row=excel_row, column=2).fill = yellow_fill
+            
+            # --- Check Attributes (Columns 3 to 3+len(attrs)) ---
+            for j, attr in enumerate(attributes):
+                col_idx = 3 + j
+                curr_val = product['attributes'].get(attr, "")
+                # Default to current if original is missing (handles newly added attrs)
+                orig_val = product['original_attributes'].get(attr, curr_val)
+                
+                if curr_val != orig_val:
+                    ws.cell(row=excel_row, column=col_idx).fill = yellow_fill
+            
+            # --- Check Price (Last Column) ---
+            # Column index is 1 + 1 + len(attrs) + len(dists) + 1 = len(headers)
+            price_col = len(headers)
+            
+            # Compare as strings to avoid floating point mismatches
+            curr_price = str(product.get('price', '')).strip()
+            orig_price = str(product.get('original_price', '')).strip()
+            
+            if curr_price != orig_price:
+                 ws.cell(row=excel_row, column=price_col).fill = yellow_fill
+
     return output.getvalue()
 
 
