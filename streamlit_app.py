@@ -1,3 +1,4 @@
+# streamlit_app.py
 import streamlit as st
 import pandas as pd
 import os
@@ -156,6 +157,45 @@ st.markdown("""
         margin: 20px 0;
         text-align: center;
     }
+    
+    /* === NEW: Magnifying Glass Effect CSS === */
+    .image-wrapper {
+        position: relative;
+        /* Allow the magnified image to render outside the normal flow */
+        overflow: visible; 
+        margin: 10px auto; 
+        width: 100%; 
+        height: 220px; 
+        z-index: 10;
+        /* The border ensures a click target */
+        border: 1px solid #eee; 
+    }
+
+    .image-wrapper img {
+        /* Standard transition for smooth scaling */
+        transition: transform 0.2s ease-in-out;
+        cursor: zoom-in;
+        transform: scale(1);
+        z-index: 10;
+        /* Ensure the image fills the wrapper */
+        width: 100%;
+        height: 100%;
+    }
+
+    .image-wrapper img:hover {
+        /* Take it out of the flow and position it relative to the wrapper */
+        position: absolute;
+        top: 0;
+        left: 0;
+        /* Double the size (magnify) */
+        transform: scale(2); 
+        /* Move the center to the cursor position (if CSS were complex) or just let it scale from top-left */
+        transform-origin: 0% 0%; 
+        box-shadow: 0 0 15px rgba(0, 0, 0, 0.5);
+        border: 2px solid #667eea;
+        z-index: 1000; /* Bring to front */
+    }
+    /* ========================================= */
 </style>
 """, unsafe_allow_html=True)
 
@@ -168,13 +208,19 @@ RETINA_FACTOR = 2
 
 @st.cache_data(show_spinner=False)
 def get_image_html_from_url(product_id: str, image_url: str, css_width: int):
-    """Creates a simple <img> tag from a URL. Caches against the product_id."""
+    """
+    Creates a simple <img> tag from a URL, wrapped in a container for the hover effect. 
+    Caches against the product_id.
+    """
     if not image_url:
         # UPDATED: Use fixed height for placeholder
-        return f'<div style="width: {css_width}px; height: {CARD_IMG_CSS_HEIGHT}px; display: flex; align-items: center; justify-content: center; background-color: #f0f2f6; border-radius: 8px;">📷 No image</div>'
-    
-    # UPDATED: Fixed height with object-fit: contain
-    return f'<img src="{image_url}" style="width: auto; max-width: {css_width}px; height: {CARD_IMG_CSS_HEIGHT}px; object-fit: contain; display: block; margin-left: auto; margin-right: auto;" alt="Product Image">'
+        inner_html = f'<div style="width: {css_width}px; height: {CARD_IMG_CSS_HEIGHT}px; display: flex; align-items: center; justify-content: center; background-color: #f0f2f6; border-radius: 8px;">📷 No image</div>'
+    else:
+        # UPDATED: Fixed height with object-fit: contain
+        inner_html = f'<img src="{image_url}" style="width: auto; max-width: {css_width}px; height: {CARD_IMG_CSS_HEIGHT}px; object-fit: contain; display: block; margin-left: auto; margin-right: auto;" alt="Product Image">'
+        
+    # NEW: Wrap the inner HTML in the image-wrapper class for the hover effect
+    return f'<div class="image-wrapper" style="width: {css_width}px; height: {CARD_IMG_CSS_HEIGHT}px;">{inner_html}</div>'
 
 @st.cache_data(show_spinner=False)
 def _encode_png_uri(im: Image.Image) -> str:
@@ -194,7 +240,7 @@ def _resize_lanczos(img: Image.Image, target_w: int) -> Image.Image:
 
 @st.cache_data(show_spinner=False)
 def build_img_srcset(image_bytes: bytes, css_width: int) -> str:
-    """Return an <img> HTML string with srcset (1x/2x) as PNG data URIs."""
+    """Return an <img> HTML string with srcset (1x/2x) as PNG data URIs, wrapped for hover."""
     img = Image.open(BytesIO(image_bytes))
     img = ImageOps.exif_transpose(img)
     one_x = _resize_lanczos(img, css_width)
@@ -203,7 +249,7 @@ def build_img_srcset(image_bytes: bytes, css_width: int) -> str:
     uri_2x = _encode_png_uri(two_x)
     
     # UPDATED: Fixed height with object-fit: contain
-    return f"""
+    img_tag = f"""
     <img
       src="{uri_1x}"
       srcset="{uri_1x} 1x, {uri_2x} {RETINA_FACTOR}x"
@@ -211,6 +257,8 @@ def build_img_srcset(image_bytes: bytes, css_width: int) -> str:
       alt="Product Image"
     />
     """
+    # NEW: Wrap in the image-wrapper div to enable the magnifying effect
+    return f'<div class="image-wrapper" style="width: {css_width}px; height: {CARD_IMG_CSS_HEIGHT}px;">{img_tag}</div>'
 
 @st.cache_data(show_spinner=False)
 def get_cached_product_image_html(product_id: str, image_bytes: bytes, css_width: int):
