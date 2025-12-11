@@ -157,76 +157,25 @@ st.markdown("""
         margin: 20px 0;
         text-align: center;
     }
-    
-    /* === UPDATED: Magnifying Glass Effect CSS === */
-    .image-wrapper {
-        position: relative;
-        /* Hiding overflow is important so the lens doesn't interfere with Streamlit layout when not active */
-        overflow: visible; 
-        margin: 10px auto; 
-        width: 100%; 
-        height: 220px; 
-        z-index: 10;
-        cursor: zoom-in;
-    }
-    
-    .magnifying-lens {
-        display: none;
-        position: absolute;
-        /* Position the lens to the right of the image */
-        left: 105%; 
-        top: 0;
-        width: 250px;
-        height: 250px;
-        /* Make it circular, or use border-radius: 10px for a square lens */
-        border-radius: 10px; 
-        background-repeat: no-repeat;
-        /* Initial background size is zoomed */
-        background-size: 200%; 
-        border: 5px solid #667eea;
-        box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
-        z-index: 1000;
-        overflow: hidden;
-    }
-
-    /* Show the lens on hover over the wrapper */
-    .image-wrapper:hover .magnifying-lens {
-        display: block;
-        /* This is a fixed background-position offset, which creates a *fixed* zoom area. 
-           To make it follow the mouse, JavaScript would be required. */
-        background-position: 50% 50%; 
-    }
-    /* ========================================= */
 </style>
 """, unsafe_allow_html=True)
 
 # --- IMAGE PROCESSING HELPERS ---
 CARD_IMG_CSS_WIDTH = 200
-CARD_IMG_CSS_HEIGHT = 220  # NEW: Fixed height for grid images
+CARD_IMG_CSS_HEIGHT = 220
 MODAL_IMG_CSS_WIDTH = 300
 RETINA_FACTOR = 2
 
 
 @st.cache_data(show_spinner=False)
 def get_image_html_from_url(product_id: str, image_url: str, css_width: int):
-    """
-    Creates the image HTML and wraps it in the structure needed for the CSS Lens effect.
-    """
+    """Creates a simple <img> tag from a URL. Caches against the product_id."""
     if not image_url:
-        inner_html = f'<div style="width: {css_width}px; height: {CARD_IMG_CSS_HEIGHT}px; display: flex; align-items: center; justify-content: center; background-color: #f0f2f6; border-radius: 8px;">📷 No image</div>'
-        # No lens needed for placeholder
-        return f'<div class="image-wrapper" style="width: {css_width}px; height: {CARD_IMG_CSS_HEIGHT}px;">{inner_html}</div>'
-
-    # 1. Image Tag
-    img_tag = f'<img src="{image_url}" style="width: auto; max-width: {css_width}px; height: {CARD_IMG_CSS_HEIGHT}px; object-fit: contain; display: block; margin-left: auto; margin-right: auto;" alt="Product Image">'
+        # Use fixed height for placeholder
+        return f'<div style="width: {css_width}px; height: {CARD_IMG_CSS_HEIGHT}px; display: flex; align-items: center; justify-content: center; background-color: #f0f2f6; border-radius: 8px;">📷 No image</div>'
     
-    # 2. Lens Tag (Note: The background image MUST be set via style property for the CSS lens to work)
-    lens_style = f"background-image: url('{image_url}');"
-    lens_tag = f'<div class="magnifying-lens" style="{lens_style}"></div>'
-    
-    # 3. Final Wrapper
-    return f'<div class="image-wrapper" style="width: {css_width}px; height: {CARD_IMG_CSS_HEIGHT}px;">{img_tag}{lens_tag}</div>'
-
+    # Fixed height with object-fit: contain
+    return f'<img src="{image_url}" style="width: auto; max-width: {css_width}px; height: {CARD_IMG_CSS_HEIGHT}px; object-fit: contain; display: block; margin-left: auto; margin-right: auto;" alt="Product Image">'
 
 @st.cache_data(show_spinner=False)
 def _encode_png_uri(im: Image.Image) -> str:
@@ -246,7 +195,7 @@ def _resize_lanczos(img: Image.Image, target_w: int) -> Image.Image:
 
 @st.cache_data(show_spinner=False)
 def build_img_srcset(image_bytes: bytes, css_width: int) -> str:
-    """Return an <img> HTML string with srcset (1x/2x) as PNG data URIs, wrapped for hover."""
+    """Return an <img> HTML string with srcset (1x/2x) as PNG data URIs."""
     img = Image.open(BytesIO(image_bytes))
     img = ImageOps.exif_transpose(img)
     one_x = _resize_lanczos(img, css_width)
@@ -254,10 +203,8 @@ def build_img_srcset(image_bytes: bytes, css_width: int) -> str:
     uri_1x = _encode_png_uri(one_x)
     uri_2x = _encode_png_uri(two_x)
     
-    # For data URIs, we cannot easily use the CSS lens method because the URI is long 
-    # and setting it as a background image can be complex. We fall back to the image tag.
-    # The image-wrapper is still applied, but without the lens for data URIs.
-    img_tag = f"""
+    # Fixed height with object-fit: contain
+    return f"""
     <img
       src="{uri_1x}"
       srcset="{uri_1x} 1x, {uri_2x} {RETINA_FACTOR}x"
@@ -265,17 +212,13 @@ def build_img_srcset(image_bytes: bytes, css_width: int) -> str:
       alt="Product Image"
     />
     """
-    # Wrap in the image-wrapper div for consistency (but without the lens div for now)
-    return f'<div class="image-wrapper" style="width: {css_width}px; height: {CARD_IMG_CSS_HEIGHT}px;">{img_tag}</div>'
 
 @st.cache_data(show_spinner=False)
 def get_cached_product_image_html(product_id: str, image_bytes: bytes, css_width: int):
     """Processes and caches the image HTML against the product_id."""
     if not image_bytes:
+        # Use fixed height for placeholder
         return f'<div style="width: {css_width}px; height: {CARD_IMG_CSS_HEIGHT}px; display: flex; align-items: center; justify-content: center; background-color: #f0f2f6; border-radius: 8px;">📷 No image</div>'
-    
-    # We prioritize the Cloud Storage method (using public URL) for the lens effect.
-    # If the image is loaded from cache/bytes, the basic srcset is returned without the lens effect.
     return build_img_srcset(image_bytes, css_width)
 
 
@@ -516,18 +459,51 @@ def create_download_excel(project):
 
 
 # --- UI DISPLAY FUNCTIONS ---
+def show_zoom_modal(product, project):
+    """Displays a modal with a large, zoomable version of the product image."""
+    @st.dialog(f"Zoom View: {product['product_id']}")
+    def zoom_dialog():
+        c_img, c_info = st.columns([1, 1])
+        
+        with c_img:
+            if product.get("image_url"):
+                st.image(
+                    product["image_url"], 
+                    caption=f"Image for {product['product_id']}", 
+                    # Use a wide width to show maximum detail
+                    width=600 
+                )
+            else:
+                st.info("No image available.")
+        
+        with c_info:
+            st.subheader(product["description"])
+            st.markdown(f"**Product ID:** `{product['product_id']}`")
+            st.markdown(f"**Price:** ${product['price']}")
+            st.divider()
+            
+            st.caption("Attributes")
+            for attr in project.get('attributes', []):
+                clean_attr = attr.replace('ATT ', '')
+                current_val = product["attributes"].get(attr, "N/A")
+                st.write(f"**{clean_attr}:** {current_val}")
+                
+        if st.button("Close", use_container_width=True):
+            del st.session_state.zooming_product
+            st.rerun()
+            
+    zoom_dialog()
+    
 def display_product_card(product, project, visible_attributes):
     """Display a single product card."""
     with st.container(border=True):
         
-        # --- Image HTML (Now includes the wrapper and lens div) ---
         image_html = get_image_html_from_url(
             product_id=product["product_id"], 
             image_url=product.get("image_url"), 
             css_width=CARD_IMG_CSS_WIDTH
         )
         st.markdown(image_html, unsafe_allow_html=True)
-        # ---------------------------------------------------------
         
         # --- Check Pending Changes for Red Highlighting ---
         idx = product["original_index"]
@@ -537,8 +513,7 @@ def display_product_card(product, project, visible_attributes):
 
         card_content = ""
         
-        # --- NEW: Always Show Product ID ---
-        # This sits above the description in gray text
+        # --- Always Show Product ID ---
         card_content += f'<div style="font-size: 11px; color: #888; margin-bottom: 2px;">ID: {product["product_id"]}</div>'
         # -----------------------------------
 
@@ -562,9 +537,17 @@ def display_product_card(product, project, visible_attributes):
                 card_content += f'<div style="font-size: 12px; line-height: 1.4; {style}"><strong>{clean_attr}:</strong> {current_val}</div>'
         
         st.markdown(card_content, unsafe_allow_html=True)
+        
+        # --- NEW: Click-to-Zoom Button ---
+        zoom_col, edit_col = st.columns(2)
+        if product.get("image_url"):
+            if zoom_col.button(f"🔍 Zoom", key=f"zoom_{product['original_index']}_{project['id']}", use_container_width=True):
+                st.session_state.zooming_product = product
+                st.rerun()
 
         if not st.session_state.get("client_mode", False):
-            if st.button(f"Edit", key=f"edit_{product['original_index']}_{project['id']}", use_container_width=True):
+            # Only show the edit button if in Admin mode
+            if edit_col.button(f"Edit", key=f"edit_{product['original_index']}_{project['id']}", use_container_width=True):
                 st.session_state.editing_product = product
                 st.rerun()
 
@@ -1209,6 +1192,11 @@ def show_grid_page():
 
     if 'editing_product' in st.session_state:
         show_edit_modal(st.session_state.editing_product, project)
+        
+    # --- NEW: Check for Zooming Modal Trigger ---
+    if 'zooming_product' in st.session_state:
+        show_zoom_modal(st.session_state.zooming_product, project)
+    # -------------------------------------------
 
     with st.container(border=True):
         st.markdown("""<style>.stMultiSelect div[data-baseweb="select"] > div:first-child {max-height: 100px; overflow-y: auto;} .stMultiSelect [data-baseweb="tag"] span {font-size: 12px !important;}</style>""", unsafe_allow_html=True)
@@ -1280,7 +1268,7 @@ def show_grid_page():
     
     sort_by, is_ascending = view_options['sort_by'], view_options['sort_ascending']
     def get_sort_key(p):
-        if sort_by == 'product_id': return int(p['product_id']) if p['product_id'].isdigit() else p['product_id']
+        if sort_by == 'product_id': return str(p['product_id']).lower()
         if sort_by == 'Description': return p['description'].lower()
         if sort_by == 'Price': return float(p.get('price', 0))
         return p['attributes'].get(sort_by, '').lower()
