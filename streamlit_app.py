@@ -158,42 +158,43 @@ st.markdown("""
         text-align: center;
     }
     
-    /* === NEW: Magnifying Glass Effect CSS === */
+    /* === UPDATED: Magnifying Glass Effect CSS === */
     .image-wrapper {
         position: relative;
-        /* Allow the magnified image to render outside the normal flow */
+        /* Hiding overflow is important so the lens doesn't interfere with Streamlit layout when not active */
         overflow: visible; 
         margin: 10px auto; 
         width: 100%; 
         height: 220px; 
         z-index: 10;
-        /* The border ensures a click target */
-        border: 1px solid #eee; 
-    }
-
-    .image-wrapper img {
-        /* Standard transition for smooth scaling */
-        transition: transform 0.2s ease-in-out;
         cursor: zoom-in;
-        transform: scale(1);
-        z-index: 10;
-        /* Ensure the image fills the wrapper */
-        width: 100%;
-        height: 100%;
+    }
+    
+    .magnifying-lens {
+        display: none;
+        position: absolute;
+        /* Position the lens to the right of the image */
+        left: 105%; 
+        top: 0;
+        width: 250px;
+        height: 250px;
+        /* Make it circular, or use border-radius: 10px for a square lens */
+        border-radius: 10px; 
+        background-repeat: no-repeat;
+        /* Initial background size is zoomed */
+        background-size: 200%; 
+        border: 5px solid #667eea;
+        box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+        z-index: 1000;
+        overflow: hidden;
     }
 
-    .image-wrapper img:hover {
-        /* Take it out of the flow and position it relative to the wrapper */
-        position: absolute;
-        top: 0;
-        left: 0;
-        /* Double the size (magnify) */
-        transform: scale(2); 
-        /* Move the center to the cursor position (if CSS were complex) or just let it scale from top-left */
-        transform-origin: 0% 0%; 
-        box-shadow: 0 0 15px rgba(0, 0, 0, 0.5);
-        border: 2px solid #667eea;
-        z-index: 1000; /* Bring to front */
+    /* Show the lens on hover over the wrapper */
+    .image-wrapper:hover .magnifying-lens {
+        display: block;
+        /* This is a fixed background-position offset, which creates a *fixed* zoom area. 
+           To make it follow the mouse, JavaScript would be required. */
+        background-position: 50% 50%; 
     }
     /* ========================================= */
 </style>
@@ -209,18 +210,23 @@ RETINA_FACTOR = 2
 @st.cache_data(show_spinner=False)
 def get_image_html_from_url(product_id: str, image_url: str, css_width: int):
     """
-    Creates a simple <img> tag from a URL, wrapped in a container for the hover effect. 
-    Caches against the product_id.
+    Creates the image HTML and wraps it in the structure needed for the CSS Lens effect.
     """
     if not image_url:
-        # UPDATED: Use fixed height for placeholder
         inner_html = f'<div style="width: {css_width}px; height: {CARD_IMG_CSS_HEIGHT}px; display: flex; align-items: center; justify-content: center; background-color: #f0f2f6; border-radius: 8px;">📷 No image</div>'
-    else:
-        # UPDATED: Fixed height with object-fit: contain
-        inner_html = f'<img src="{image_url}" style="width: auto; max-width: {css_width}px; height: {CARD_IMG_CSS_HEIGHT}px; object-fit: contain; display: block; margin-left: auto; margin-right: auto;" alt="Product Image">'
-        
-    # NEW: Wrap the inner HTML in the image-wrapper class for the hover effect
-    return f'<div class="image-wrapper" style="width: {css_width}px; height: {CARD_IMG_CSS_HEIGHT}px;">{inner_html}</div>'
+        # No lens needed for placeholder
+        return f'<div class="image-wrapper" style="width: {css_width}px; height: {CARD_IMG_CSS_HEIGHT}px;">{inner_html}</div>'
+
+    # 1. Image Tag
+    img_tag = f'<img src="{image_url}" style="width: auto; max-width: {css_width}px; height: {CARD_IMG_CSS_HEIGHT}px; object-fit: contain; display: block; margin-left: auto; margin-right: auto;" alt="Product Image">'
+    
+    # 2. Lens Tag (Note: The background image MUST be set via style property for the CSS lens to work)
+    lens_style = f"background-image: url('{image_url}');"
+    lens_tag = f'<div class="magnifying-lens" style="{lens_style}"></div>'
+    
+    # 3. Final Wrapper
+    return f'<div class="image-wrapper" style="width: {css_width}px; height: {CARD_IMG_CSS_HEIGHT}px;">{img_tag}{lens_tag}</div>'
+
 
 @st.cache_data(show_spinner=False)
 def _encode_png_uri(im: Image.Image) -> str:
@@ -248,7 +254,9 @@ def build_img_srcset(image_bytes: bytes, css_width: int) -> str:
     uri_1x = _encode_png_uri(one_x)
     uri_2x = _encode_png_uri(two_x)
     
-    # UPDATED: Fixed height with object-fit: contain
+    # For data URIs, we cannot easily use the CSS lens method because the URI is long 
+    # and setting it as a background image can be complex. We fall back to the image tag.
+    # The image-wrapper is still applied, but without the lens for data URIs.
     img_tag = f"""
     <img
       src="{uri_1x}"
@@ -257,15 +265,17 @@ def build_img_srcset(image_bytes: bytes, css_width: int) -> str:
       alt="Product Image"
     />
     """
-    # NEW: Wrap in the image-wrapper div to enable the magnifying effect
+    # Wrap in the image-wrapper div for consistency (but without the lens div for now)
     return f'<div class="image-wrapper" style="width: {css_width}px; height: {CARD_IMG_CSS_HEIGHT}px;">{img_tag}</div>'
 
 @st.cache_data(show_spinner=False)
 def get_cached_product_image_html(product_id: str, image_bytes: bytes, css_width: int):
     """Processes and caches the image HTML against the product_id."""
     if not image_bytes:
-        # UPDATED: Use fixed height for placeholder
         return f'<div style="width: {css_width}px; height: {CARD_IMG_CSS_HEIGHT}px; display: flex; align-items: center; justify-content: center; background-color: #f0f2f6; border-radius: 8px;">📷 No image</div>'
+    
+    # We prioritize the Cloud Storage method (using public URL) for the lens effect.
+    # If the image is loaded from cache/bytes, the basic srcset is returned without the lens effect.
     return build_img_srcset(image_bytes, css_width)
 
 
@@ -510,12 +520,14 @@ def display_product_card(product, project, visible_attributes):
     """Display a single product card."""
     with st.container(border=True):
         
+        # --- Image HTML (Now includes the wrapper and lens div) ---
         image_html = get_image_html_from_url(
             product_id=product["product_id"], 
             image_url=product.get("image_url"), 
             css_width=CARD_IMG_CSS_WIDTH
         )
         st.markdown(image_html, unsafe_allow_html=True)
+        # ---------------------------------------------------------
         
         # --- Check Pending Changes for Red Highlighting ---
         idx = product["original_index"]
