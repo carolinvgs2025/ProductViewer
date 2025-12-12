@@ -95,6 +95,13 @@ hide_streamlit_style = """
     .stMultiSelect [data-baseweb="tag"] span {
         font-size: 12px !important; 
     }
+    
+    /* 8. NEW: Force Modal to be wider for editing */
+    /* Target the dialog container to maximize its width */
+    [data-testid="stModal"] > div > div {
+        max-width: 90vw !important;
+        width: 1400px !important;
+    }
 </style>
 """
 st.markdown(hide_streamlit_style, unsafe_allow_html=True)
@@ -513,7 +520,7 @@ def show_edit_modal(product, project):
     def edit_product_dialog():
         
         # --- FIXED LAYOUT FOR IMAGE AND ATTRIBUTES ---
-        # UPDATED RATIO: [3, 2] for 60% Image and 40% Form
+        # UPDATED RATIO: [3, 2] for 60% Image and 40% Form. Modal width is forced wider by CSS.
         col_img, col_form = st.columns([3, 2]) 
         
         with col_img:
