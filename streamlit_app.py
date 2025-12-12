@@ -1,4 +1,3 @@
-# streamlit_app.py
 import streamlit as st
 import pandas as pd
 import os
@@ -162,8 +161,8 @@ st.markdown("""
 
 # --- IMAGE PROCESSING HELPERS ---
 CARD_IMG_CSS_WIDTH = 200
-CARD_IMG_CSS_HEIGHT = 220
-MODAL_IMG_CSS_WIDTH = 450 # UPDATED: Increased width for a zoomed-up look
+CARD_IMG_CSS_HEIGHT = 220  # NEW: Fixed height for grid images
+MODAL_IMG_CSS_WIDTH = 300
 RETINA_FACTOR = 2
 
 
@@ -171,10 +170,10 @@ RETINA_FACTOR = 2
 def get_image_html_from_url(product_id: str, image_url: str, css_width: int):
     """Creates a simple <img> tag from a URL. Caches against the product_id."""
     if not image_url:
-        # Use fixed height for placeholder
+        # UPDATED: Use fixed height for placeholder
         return f'<div style="width: {css_width}px; height: {CARD_IMG_CSS_HEIGHT}px; display: flex; align-items: center; justify-content: center; background-color: #f0f2f6; border-radius: 8px;">📷 No image</div>'
     
-    # Fixed height with object-fit: contain
+    # UPDATED: Fixed height with object-fit: contain
     return f'<img src="{image_url}" style="width: auto; max-width: {css_width}px; height: {CARD_IMG_CSS_HEIGHT}px; object-fit: contain; display: block; margin-left: auto; margin-right: auto;" alt="Product Image">'
 
 @st.cache_data(show_spinner=False)
@@ -203,7 +202,7 @@ def build_img_srcset(image_bytes: bytes, css_width: int) -> str:
     uri_1x = _encode_png_uri(one_x)
     uri_2x = _encode_png_uri(two_x)
     
-    # Fixed height with object-fit: contain
+    # UPDATED: Fixed height with object-fit: contain
     return f"""
     <img
       src="{uri_1x}"
@@ -217,7 +216,7 @@ def build_img_srcset(image_bytes: bytes, css_width: int) -> str:
 def get_cached_product_image_html(product_id: str, image_bytes: bytes, css_width: int):
     """Processes and caches the image HTML against the product_id."""
     if not image_bytes:
-        # Use fixed height for placeholder
+        # UPDATED: Use fixed height for placeholder
         return f'<div style="width: {css_width}px; height: {CARD_IMG_CSS_HEIGHT}px; display: flex; align-items: center; justify-content: center; background-color: #f0f2f6; border-radius: 8px;">📷 No image</div>'
     return build_img_srcset(image_bytes, css_width)
 
@@ -459,41 +458,6 @@ def create_download_excel(project):
 
 
 # --- UI DISPLAY FUNCTIONS ---
-def show_zoom_modal(product, project):
-    """Displays a modal with a large, zoomable version of the product image."""
-    @st.dialog(f"Zoom View: {product['product_id']}")
-    def zoom_dialog():
-        c_img, c_info = st.columns([1, 1])
-        
-        with c_img:
-            if product.get("image_url"):
-                st.image(
-                    product["image_url"], 
-                    caption=f"Image for {product['product_id']}", 
-                    # Use a wide width to show maximum detail
-                    width=600 
-                )
-            else:
-                st.info("No image available.")
-        
-        with c_info:
-            st.subheader(product["description"])
-            st.markdown(f"**Product ID:** `{product['product_id']}`")
-            st.markdown(f"**Price:** ${product['price']}")
-            st.divider()
-            
-            st.caption("Attributes")
-            for attr in project.get('attributes', []):
-                clean_attr = attr.replace('ATT ', '')
-                current_val = product["attributes"].get(attr, "N/A")
-                st.write(f"**{clean_attr}:** {current_val}")
-                
-        if st.button("Close", use_container_width=True):
-            del st.session_state.zooming_product
-            st.rerun()
-            
-    zoom_dialog()
-    
 def display_product_card(product, project, visible_attributes):
     """Display a single product card."""
     with st.container(border=True):
@@ -513,7 +477,8 @@ def display_product_card(product, project, visible_attributes):
 
         card_content = ""
         
-        # --- Always Show Product ID ---
+        # --- NEW: Always Show Product ID ---
+        # This sits above the description in gray text
         card_content += f'<div style="font-size: 11px; color: #888; margin-bottom: 2px;">ID: {product["product_id"]}</div>'
         # -----------------------------------
 
@@ -537,73 +502,48 @@ def display_product_card(product, project, visible_attributes):
                 card_content += f'<div style="font-size: 12px; line-height: 1.4; {style}"><strong>{clean_attr}:</strong> {current_val}</div>'
         
         st.markdown(card_content, unsafe_allow_html=True)
-        
-        # --- NEW: Click-to-Zoom Button ---
-        zoom_col, edit_col = st.columns(2)
-        if product.get("image_url"):
-            if zoom_col.button(f"🔍 Zoom", key=f"zoom_{product['original_index']}_{project['id']}", use_container_width=True):
-                st.session_state.zooming_product = product
-                st.rerun()
 
         if not st.session_state.get("client_mode", False):
-            # Only show the edit button if in Admin mode
-            if edit_col.button(f"Edit", key=f"edit_{product['original_index']}_{project['id']}", use_container_width=True):
+            if st.button(f"Edit", key=f"edit_{product['original_index']}_{project['id']}", use_container_width=True):
                 st.session_state.editing_product = product
                 st.rerun()
 
 def show_edit_modal(product, project):
     @st.dialog(f"Edit Product: {product['product_id']}")
     def edit_product_dialog():
+        if product.get("image_url"):
+            st.markdown(f'<div style="text-align: center; margin-bottom: 20px;"><img src="{product["image_url"]}" style="width:{MODAL_IMG_CSS_WIDTH}px; height:auto;"></div>', unsafe_allow_html=True)
         
-        # --- FIXED LAYOUT FOR IMAGE AND ATTRIBUTES ---
-        col_img, col_form = st.columns([1, 2]) # Ratio to give more space to the form inputs
+        col1, col2 = st.columns(2)
+        new_description = col1.text_input("Description", value=product["description"])
+        new_price = col2.text_input("Price", value=product["price"])
         
-        with col_img:
-            st.subheader("Image")
-            if product.get("image_url"):
-                # Use st.image for better Streamlit handling and set a larger width (zoomed up)
-                st.image(
-                    product["image_url"], 
-                    caption=product["product_id"], 
-                    width=MODAL_IMG_CSS_WIDTH 
+        st.subheader("Attributes")
+        attr_cols = st.columns(2)
+        new_attributes = {}
+        for i, attr in enumerate(project['attributes']):
+            with attr_cols[i % 2]:
+                current_val = product["attributes"][attr]
+                options = project['filter_options'].get(attr, [])
+                if current_val not in options:
+                    options.insert(0, current_val)
+                
+                clean_attr = attr.replace('ATT ', '')
+                index = options.index(current_val) if current_val in options else 0
+                
+                selected_option = st.selectbox(
+                    f"{clean_attr}", options + ["[Custom Value]"], index=index,
+                    key=f"modal_attr_{attr}_{product['original_index']}"
                 )
-            else:
-                st.info("No image available.")
-        
-        with col_form:
-            st.subheader("Product Details")
-            col1, col2 = st.columns(2)
-            new_description = col1.text_input("Description", value=product["description"])
-            new_price = col2.text_input("Price", value=product["price"])
-            
-            st.subheader("Attributes")
-            # Restructure attributes into a two-column grid inside the form column
-            attr_cols = st.columns(2)
-            new_attributes = {}
-            for i, attr in enumerate(project['attributes']):
-                with attr_cols[i % 2]:
-                    current_val = product["attributes"][attr]
-                    options = project['filter_options'].get(attr, [])
-                    if current_val not in options:
-                        options.insert(0, current_val)
-                    
-                    clean_attr = attr.replace('ATT ', '')
-                    index = options.index(current_val) if current_val in options else 0
-                    
-                    selected_option = st.selectbox(
-                        f"{clean_attr}", options + ["[Custom Value]"], index=index,
-                        key=f"modal_attr_{attr}_{product['original_index']}"
+                
+                if selected_option == "[Custom Value]":
+                    new_attributes[attr] = st.text_input(
+                        f"Custom {clean_attr}", value=current_val, 
+                        key=f"modal_custom_{attr}_{product['original_index']}"
                     )
-                    
-                    if selected_option == "[Custom Value]":
-                        new_attributes[attr] = st.text_input(
-                            f"Custom {clean_attr}", value=current_val, 
-                            key=f"modal_custom_{attr}_{product['original_index']}"
-                        )
-                    else:
-                        new_attributes[attr] = selected_option
-        # --- END FIXED LAYOUT ---
-
+                else:
+                    new_attributes[attr] = selected_option
+        
         st.markdown("---")
         _, save_col, cancel_col, _ = st.columns([1, 1, 1, 1])
         if save_col.button("💾 Save Changes", type="primary", use_container_width=True):
@@ -1209,11 +1149,6 @@ def show_grid_page():
 
     if 'editing_product' in st.session_state:
         show_edit_modal(st.session_state.editing_product, project)
-        
-    # --- Check for Zooming Modal Trigger ---
-    if 'zooming_product' in st.session_state:
-        show_zoom_modal(st.session_state.zooming_product, project)
-    # -------------------------------------------
 
     with st.container(border=True):
         st.markdown("""<style>.stMultiSelect div[data-baseweb="select"] > div:first-child {max-height: 100px; overflow-y: auto;} .stMultiSelect [data-baseweb="tag"] span {font-size: 12px !important;}</style>""", unsafe_allow_html=True)
@@ -1285,7 +1220,7 @@ def show_grid_page():
     
     sort_by, is_ascending = view_options['sort_by'], view_options['sort_ascending']
     def get_sort_key(p):
-        if sort_by == 'product_id': return str(p['product_id']).lower()
+        if sort_by == 'product_id': return int(p['product_id']) if p['product_id'].isdigit() else p['product_id']
         if sort_by == 'Description': return p['description'].lower()
         if sort_by == 'Price': return float(p.get('price', 0))
         return p['attributes'].get(sort_by, '').lower()
