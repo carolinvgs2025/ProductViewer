@@ -513,17 +513,17 @@ def show_edit_modal(product, project):
     def edit_product_dialog():
         
         # --- FIXED LAYOUT FOR IMAGE AND ATTRIBUTES ---
-        # UPDATED: Column ratio changed to [1.5, 3] to make the modal wider and give the form more space.
-        col_img, col_form = st.columns([1.5, 3]) 
+        # UPDATED RATIO: [3, 2] for 60% Image and 40% Form
+        col_img, col_form = st.columns([3, 2]) 
         
         with col_img:
             st.subheader("Product Image")
             if product.get("image_url"):
-                # MODAL_IMG_CSS_WIDTH is 500
+                # MODAL_IMG_CSS_WIDTH is 500 (zoomed)
                 st.image(
                     product["image_url"], 
                     caption=f"ID: {product['product_id']}", 
-                    width=MODAL_IMG_CSS_WIDTH 
+                    width=MODAL_IMG_CSS_WIDTH
                 )
             else:
                 st.info("No image available.")
@@ -668,7 +668,7 @@ def show_create_project_page():
             try:
                 df_preview = pd.read_excel(uploaded_excel)
                 df_preview.columns = [str(c).strip() for c in df_preview.columns]
-                id_col = next((c for c in df_preview.columns if 'product id' in c.lower()), None)
+                id_col = next((c for c in df.columns if 'product id' in c.lower()), None)
                 
                 if id_col:
                     excel_ids = set()
