@@ -162,7 +162,7 @@ st.markdown("""
 # --- IMAGE PROCESSING HELPERS ---
 CARD_IMG_CSS_WIDTH = 200
 CARD_IMG_CSS_HEIGHT = 220  # NEW: Fixed height for grid images
-MODAL_IMG_CSS_WIDTH = 300
+MODAL_IMG_CSS_WIDTH = 500 # UPDATED: Increased width for a zoomed-up look in modal
 RETINA_FACTOR = 2
 
 
@@ -511,39 +511,57 @@ def display_product_card(product, project, visible_attributes):
 def show_edit_modal(product, project):
     @st.dialog(f"Edit Product: {product['product_id']}")
     def edit_product_dialog():
-        if product.get("image_url"):
-            st.markdown(f'<div style="text-align: center; margin-bottom: 20px;"><img src="{product["image_url"]}" style="width:{MODAL_IMG_CSS_WIDTH}px; height:auto;"></div>', unsafe_allow_html=True)
         
-        col1, col2 = st.columns(2)
-        new_description = col1.text_input("Description", value=product["description"])
-        new_price = col2.text_input("Price", value=product["price"])
+        # --- NEW MAIN TWO-COLUMN LAYOUT (Image on Left, Form on Right) ---
+        col_img, col_form = st.columns([1.5, 2]) # Ratio to prioritize form space but keep image large
         
-        st.subheader("Attributes")
-        attr_cols = st.columns(2)
-        new_attributes = {}
-        for i, attr in enumerate(project['attributes']):
-            with attr_cols[i % 2]:
-                current_val = product["attributes"][attr]
-                options = project['filter_options'].get(attr, [])
-                if current_val not in options:
-                    options.insert(0, current_val)
-                
-                clean_attr = attr.replace('ATT ', '')
-                index = options.index(current_val) if current_val in options else 0
-                
-                selected_option = st.selectbox(
-                    f"{clean_attr}", options + ["[Custom Value]"], index=index,
-                    key=f"modal_attr_{attr}_{product['original_index']}"
+        with col_img:
+            st.subheader("Product Image")
+            if product.get("image_url"):
+                # Use st.image for better display control and set zoomed width
+                st.image(
+                    product["image_url"], 
+                    caption=f"ID: {product['product_id']}", 
+                    width=MODAL_IMG_CSS_WIDTH
                 )
-                
-                if selected_option == "[Custom Value]":
-                    new_attributes[attr] = st.text_input(
-                        f"Custom {clean_attr}", value=current_val, 
-                        key=f"modal_custom_{attr}_{product['original_index']}"
-                    )
-                else:
-                    new_attributes[attr] = selected_option
+            else:
+                st.info("No image available.")
         
+        with col_form:
+            st.subheader("Product Details")
+            # Description and Price in a horizontal pair
+            col1, col2 = st.columns(2)
+            new_description = col1.text_input("Description", value=product["description"])
+            new_price = col2.text_input("Price", value=product["price"])
+            
+            st.subheader("Attributes")
+            # Attributes in a two-column sub-grid inside the right column
+            attr_cols = st.columns(2)
+            new_attributes = {}
+            for i, attr in enumerate(project['attributes']):
+                with attr_cols[i % 2]:
+                    current_val = product["attributes"][attr]
+                    options = project['filter_options'].get(attr, [])
+                    if current_val not in options:
+                        options.insert(0, current_val)
+                    
+                    clean_attr = attr.replace('ATT ', '')
+                    index = options.index(current_val) if current_val in options else 0
+                    
+                    selected_option = st.selectbox(
+                        f"{clean_attr}", options + ["[Custom Value]"], index=index,
+                        key=f"modal_attr_{attr}_{product['original_index']}"
+                    )
+                    
+                    if selected_option == "[Custom Value]":
+                        new_attributes[attr] = st.text_input(
+                            f"Custom {clean_attr}", value=current_val, 
+                            key=f"modal_custom_{attr}_{product['original_index']}"
+                        )
+                    else:
+                        new_attributes[attr] = selected_option
+        # --- END NEW LAYOUT ---
+
         st.markdown("---")
         _, save_col, cancel_col, _ = st.columns([1, 1, 1, 1])
         if save_col.button("💾 Save Changes", type="primary", use_container_width=True):
