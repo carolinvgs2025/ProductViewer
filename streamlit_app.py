@@ -512,17 +512,18 @@ def show_edit_modal(product, project):
     @st.dialog(f"Edit Product: {product['product_id']}")
     def edit_product_dialog():
         
-        # --- NEW MAIN TWO-COLUMN LAYOUT (Image on Left, Form on Right) ---
-        col_img, col_form = st.columns([1.5, 2]) # Ratio to prioritize form space but keep image large
+        # --- FIXED LAYOUT FOR IMAGE AND ATTRIBUTES ---
+        # UPDATED: Column ratio changed to [1.5, 3] to make the modal wider and give the form more space.
+        col_img, col_form = st.columns([1.5, 3]) 
         
         with col_img:
             st.subheader("Product Image")
             if product.get("image_url"):
-                # Use st.image for better display control and set zoomed width
+                # MODAL_IMG_CSS_WIDTH is 500
                 st.image(
                     product["image_url"], 
                     caption=f"ID: {product['product_id']}", 
-                    width=MODAL_IMG_CSS_WIDTH
+                    width=MODAL_IMG_CSS_WIDTH 
                 )
             else:
                 st.info("No image available.")
